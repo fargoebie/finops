@@ -1,22 +1,20 @@
-# Copy to terraform.tfvars (gitignored) and fill in.
-# Never commit real secrets. Prefer:
-#   ./scripts/deploy.sh sync-secrets
-# over putting cloud_integration_json / admin_token here.
+# demogcp-terra2021 — deploy + BigQuery billing export in the SAME project.
+# Copy to terraform.tfvars (gitignored). Never commit secrets.
 
-project_id = "my-gcp-project"
-region     = "us-central1"
-zone       = "us-central1-a"
+project_id  = "demogcp-terra2021"
+region      = "us-central1"
+zone        = "us-central1-a"
 name_prefix = "opencost"
 
-# Project that owns the BigQuery billing export dataset (defaults to project_id).
-# billing_export_project_id = "my-billing-export-project"
+# Same project: leave billing_export_project_id unset (defaults to project_id).
+# billing_export_project_id = "demogcp-terra2021"
 
-# Who may invoke Cloud Run (principle E). Use user: or serviceAccount: members.
+# Who may invoke Cloud Run (principle E).
 invoker_members = [
-  "user:you@example.com",
+  # "user:you@example.com",
+  # "serviceAccount:opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com",
 ]
 
-# Immutable tag pushed by scripts/deploy.sh
 image_tag = "bootstrap"
 
 cloud_run_cpu           = "1"
@@ -26,6 +24,5 @@ cloud_run_max_instances = 2
 
 vpc_cidr = "10.20.0.0/24"
 
-# Leave null and use deploy.sh to write secret versions:
-# cloud_integration_json = null
-# admin_token            = null
+# Seed secrets via scripts, not tfvars:
+#   ./scripts/deploy.sh sync-secrets

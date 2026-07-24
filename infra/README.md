@@ -1,37 +1,60 @@
-# OpenCost Cloud Cost — GCP infrastructure (OpenTofu)
+# OpenCost Cloud Cost — GCP infra (`demogcp-terra2021`)
 
-Compliance-aligned IaC for **cloud-cost-only** OpenCost on **Cloud Run**.
+**Project:** `demogcp-terra2021` (deploy **and** BigQuery billing export)  
+**Tooling:** OpenTofu + scripts under `scripts/`  
+**Baseline:** [`../docs/architecture-compliance.md`](../docs/architecture-compliance.md)
 
-Baseline: [`../docs/architecture-compliance.md`](../docs/architecture-compliance.md)  
-Agent plan: [`../AGENTS.md`](../AGENTS.md) (Plan B)
+## Identities
 
-## Intentionally omitted (v1)
+| SA | Key? | Role |
+|----|------|------|
+| `opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com` | Yes — base64 in Cloud Agent secret `GCP_SA_KEY_B64` | tofu / deploy.sh |
+| `opencost-cloudcost@demogcp-terra2021.iam.gserviceaccount.com` | **No** (WI/ADC on Cloud Run) | Read BQ billing export |
 
-Per compliance review, these baseline files are **not** present until needed:
-
-- `cloud_sql.tf` / `redis_vm.tf` — no app database/cache
-- `cloud_scheduler.tf` — add when scheduled `/cloudCost/rebuild` jobs are required
-- `gcs.tf` — add if durable exports are introduced (tofu state bucket is out-of-band)
-
-## Bootstrap
-
-1. Create versioned state bucket: `gs://${PROJECT_ID}-tofu-state`
-2. Edit `provider.tf` `backend "gcs" { bucket = "..." }` (or use partial backend config)
-3. `cp terraform.tfvars.example terraform.tfvars` and fill non-secret values
-4. Ensure BigQuery **resource/detailed** billing export exists (Plan A)
-5. Prepare `cloud-integration.json` with `"authorizerType": "GCPWorkloadIdentity"` (no private key)
-6. `tofu init && tofu apply`
-7. Seed secrets + image:
+## One-time on an admin machine
 
 ```bash
-export PROJECT_ID=...
-export CLOUD_INTEGRATION_FILE=/secure/path/cloud-integration.json
-export ADMIN_TOKEN_FILE=/secure/path/admin_token.txt
+# 1) Create deployer SA + print base64 for Cursor secret GCP_SA_KEY_B64
+./scripts/create-deployer-sa.sh
+
+# 2) Create tofu state bucket
+./scripts/bootstrap-state-bucket.sh
+
+# 3) Enable billing export (resource/detailed) in demogcp-terra2021, then edit:
+#    examples/cloud-integration.demogcp-terra2021.json
+```
+
+Add Cloud Agent secret:
+
+- **Name:** `GCP_SA_KEY_B64`
+- **Value:** single-line base64 from `create-deployer-sa.sh` output
+
+## On the Cloud Agent (no interactive ADC)
+
+```bash
+cp terraform.tfvars.example terraform.tfvars
+# set invoker_members, then:
+
+./scripts/auth-from-secret.sh          # decodes GCP_SA_KEY_B64 → ADC file
+cp backend.hcl.example backend.hcl
+tofu init -backend-config=backend.hcl
+tofu apply
+
+# Edit examples/cloud-integration.demogcp-terra2021.json (dataset/table)
+export ADMIN_TOKEN_FILE=/secure/admin_token.txt   # optional
 ./scripts/deploy.sh all
 ```
 
-## Auth model
+## Scripts
 
-- Cloud Run requires IAM invoker (`invoker_members` in tfvars)
-- Admin routes require `ADMIN_TOKEN` from Secret Manager
-- Runtime SA uses ADC for BigQuery (WI authorizer in integration JSON)
+| Script | Purpose |
+|--------|---------|
+| `env.sh` | Shared defaults (`PROJECT_ID=demogcp-terra2021`) |
+| `create-deployer-sa.sh` | Create deployer SA + roles + base64 for agent secret |
+| `auth-from-secret.sh` | Decode `GCP_SA_KEY_B64` → `GOOGLE_APPLICATION_CREDENTIALS` |
+| `bootstrap-state-bucket.sh` | `gs://demogcp-terra2021-tofu-state` + versioning |
+| `deploy.sh` | push AR image, sync secrets, update Cloud Run |
+
+## Intentionally omitted (v1)
+
+`cloud_sql.tf`, `redis_vm.tf`, `cloud_scheduler.tf`, `gcs.tf` (app data) — not required for cloud-cost-only.

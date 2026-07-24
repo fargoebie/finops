@@ -1,0 +1,17 @@
+{
+  "gcp": {
+    "bigQuery": [
+      {
+        "projectID": "demogcp-terra2021",
+        "dataset": "REPLACE_BILLING_DATASET",
+        "table": "REPLACE_gcp_billing_export_resource_v1_XXXXXX_XXXXXX_XXXXXX",
+        "location": "US",
+        "queryProjectID": "",
+        "excludePartitionTime": false,
+        "authorizer": {
+          "authorizerType": "GCPWorkloadIdentity"
+        }
+      }
+    ]
+  }
+}
