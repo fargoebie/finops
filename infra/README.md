@@ -75,9 +75,17 @@ Cloud Run runs **two containers** in one service:
 | `opencost-ui` | **9090** (ingress) | SPA + nginx proxy `/model` → API |
 | `opencost` | 9003 (localhost only) | Cloud Cost API → BigQuery |
 
-UI env: `API_SERVER=127.0.0.1`, `API_PORT=9003`, `LEGACY_MODE=true` (required for `/cloud`).  
-Public Cloud Costs page: `${cloud_run_service_uri}/cloud`  
-Note: the default (non-legacy) UI has no `/cloud` route and will show a client-side 404.
+UI env: `API_SERVER=127.0.0.1`, `API_PORT=9003`, `LEGACY_MODE=false`, `BASE_URL=/model`.
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Home dashboard (cloud costs) |
+| `/dashboards` | Saved dashboards |
+| `/reports` | Reports |
+| `/settings` | Settings |
+| `/model/cloudCost*` | API proxied to the sidecar |
+
+`/cloud` is legacy-only and is not used with the default UI.
 
 ## Intentionally omitted (v1)
 

@@ -24,8 +24,8 @@ output "cloud_run_service_uri" {
 }
 
 output "cloud_run_ui_url" {
-  description = "Cloud Costs UI path on the public service URL."
-  value       = "${google_cloud_run_v2_service.opencost.uri}/cloud"
+  description = "Default (non-legacy) UI home on the public service URL."
+  value       = "${google_cloud_run_v2_service.opencost.uri}/"
 }
 
 output "cloud_run_service_name" {

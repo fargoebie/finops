@@ -9,7 +9,7 @@ Deployed Cloud Run cloud-cost API on `demogcp-terra2021`:
 | Item | Value |
 |------|--------|
 | Service URL | `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app` |
-| UI | `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app/cloud` |
+| UI | `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app/` (home/dashboards; `LEGACY_MODE=false`) |
 | Images | `…/opencost:<sha>` + `…/opencost-ui:<sha>` (multi-container) |
 | Runtime SA | `opencost-cloudcost@demogcp-terra2021.iam.gserviceaccount.com` |
 | BQ dataset | `export_billing_demogcp_detailed` (US) |
