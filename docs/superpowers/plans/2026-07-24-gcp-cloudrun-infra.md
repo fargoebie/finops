@@ -26,4 +26,4 @@
 - [x] Add `.gitignore`, `terraform.tfvars.example`, `scripts/deploy.sh`
 - [x] Generate `.terraform.lock.hcl` via `tofu init` (local backend override if no GCS)
 - [x] Update `AGENTS.md` compliance status (`infra/` exists as scaffold)
-- [ ] Commit and push; update PR
+- [x] Commit and push; update PR
