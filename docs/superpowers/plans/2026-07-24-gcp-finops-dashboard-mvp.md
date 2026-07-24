@@ -1,5 +1,7 @@
 # GCP FinOps Dashboard MVP — Inform Layer Only
 
+> **Superseded for implementation:** use [`2026-07-25-gcp-finops-dashboard.md`](./2026-07-25-gcp-finops-dashboard.md) (written from the approved design spec). This file is retained as historical context only.
+
 > **For agentic workers:** Implement task-by-task. Steps use checkbox syntax.
 
 **Goal:** Ship a realistic, GCP-only cost Inform dashboard pack (no Kubernetes allocation, no External/Custom Cost) on top of the existing Cloud Run OpenCost cloud-cost API.
