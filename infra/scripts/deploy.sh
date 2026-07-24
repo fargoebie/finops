@@ -4,8 +4,12 @@
 #
 # Multi-container service: opencost-ui (ingress :9090) + opencost API sidecar (:9003).
 #
+# Image tags: this script owns day-2 container images (git sha). Cloud Run in
+# OpenTofu ignores template containers[].image so tofu apply will not revert them.
+#
 # Typical agent flow:
 #   ./infra/scripts/auth-from-secret.sh          # from GCP_SA_KEY_B64
+#   cd infra && tofu apply                       # seed-if-empty secrets + service
 #   ./infra/scripts/deploy.sh all
 set -euo pipefail
 

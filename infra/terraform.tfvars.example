@@ -18,6 +18,8 @@ invoker_members = [
   "serviceAccount:opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com",
 ]
 
+# Initial tag only — deploy.sh pushes git-sha tags and updates Cloud Run;
+# tofu ignores container image drift after the first apply.
 image_tag = "bootstrap"
 
 cloud_run_cpu           = "1"

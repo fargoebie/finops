@@ -44,8 +44,10 @@ Continue OpenCost Cloud Run deploy for demogcp-terra2021.
 4. cp infra/terraform.tfvars.example infra/terraform.tfvars  (invokers include farry@terralogiq.com)
 5. cp infra/backend.hcl.example infra/backend.hcl  (prefix must be tofu/opencost)
 6. Install gcloud/tofu/docker if missing; then: cd infra && tofu init -backend-config=backend.hcl && tofu apply
+   (apply seed-if-empty secrets so Cloud Run can mount latest; does not clobber existing versions)
 7. Create ADMIN_TOKEN file and: ./infra/scripts/deploy.sh all
-8. Smoke test /cloudCost/status — expect Connection Successful
+   (sync-secrets + push git-sha images; tofu ignores image drift)
+8. Smoke test /model/cloudCost/status (UI ingress) — expect Connection Successful
 
 Project is same for deploy + BQ: demogcp-terra2021.
 Follow AGENTS.md Plan A/B and docs/architecture-compliance.md. Do not commit secrets or terraform.tfvars.

@@ -170,6 +170,7 @@ resource "google_cloud_run_v2_service" "opencost" {
     google_project_service.required,
     google_secret_manager_secret_iam_member.cloud_integration_accessor,
     google_secret_manager_secret_iam_member.admin_token_accessor,
+    terraform_data.seed_secret_versions,
     google_artifact_registry_repository.opencost,
   ]
 
@@ -177,9 +178,12 @@ resource "google_cloud_run_v2_service" "opencost" {
     ignore_changes = [
       client,
       client_version,
-      # Images are updated by deploy.sh (git sha tags). Do not ignore by container
-      # index — reordering (e.g. adding the UI ingress) previously left the UI
-      # container stuck on the API image digest.
+      # Images are updated by deploy.sh (git sha tags). Keep container order stable:
+      # [0]=opencost-ui (ingress), [1]=opencost (API). Do not reorder without
+      # updating these ignore paths — wrong indexes previously pinned the UI to
+      # the API image digest.
+      template[0].containers[0].image,
+      template[0].containers[1].image,
     ]
   }
 }

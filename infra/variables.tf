@@ -34,7 +34,7 @@ variable "invoker_members" {
 }
 
 variable "image_tag" {
-  description = "Immutable image tag in Artifact Registry (git sha or semver). Avoid 'latest' in prod."
+  description = "Initial Artifact Registry tag for opencost + opencost-ui (git sha or semver). Day-2 updates via deploy.sh; Cloud Run ignores image drift after first apply. Avoid 'latest' in prod."
   type        = string
   default     = "bootstrap"
 }
@@ -96,17 +96,19 @@ variable "cloud_cost_query_window_days" {
   default = 7
 }
 
-# Optional: seed secret versions at apply time. Prefer deploy.sh / gcloud secrets versions add.
-# Never commit real values in terraform.tfvars.
+# Optional: explicit first secret versions at apply time.
+# When null, terraform_data.seed_secret_versions seeds from the example JSON /
+# a bootstrap admin placeholder if the secret has no enabled versions yet.
+# Day-2 updates: ./scripts/deploy.sh sync-secrets. Never commit real values in tfvars.
 variable "cloud_integration_json" {
-  description = "Optional initial cloud-integration.json body. null = create empty secret only."
+  description = "Optional initial cloud-integration.json body. null = seed-if-empty from examples/."
   type        = string
   default     = null
   sensitive   = true
 }
 
 variable "admin_token" {
-  description = "Optional initial ADMIN_TOKEN. null = create empty secret only."
+  description = "Optional initial ADMIN_TOKEN. null = seed-if-empty bootstrap placeholder (replace via deploy.sh)."
   type        = string
   default     = null
   sensitive   = true

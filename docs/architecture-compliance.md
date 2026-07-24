@@ -96,7 +96,8 @@ terraform {
   required_providers {
     google = { source = "hashicorp/google", version = ">= 7.26.0" }
   }
-  backend "gcs" { bucket = "<project>-tofu-state", prefix = "tofu/state" }
+  # Use an app-isolated prefix. Never share tofu/state across stacks in one bucket.
+  backend "gcs" { bucket = "<project>-tofu-state", prefix = "tofu/<app>" }
 }
 ```
 
@@ -157,7 +158,7 @@ terraform.tfvars
 
 ### Bootstrap order (new project)
 1. Create the remote-state GCS bucket manually; enable versioning.
-2. `cp terraform.tfvars.example terraform.tfvars`, fill in project-specific values.
-3. Set `project_id` / `region` / `zone` (in `variables.tf` or via `-var`).
-4. `cd infra && tofu init && tofu apply` (pass sensitive vars at apply time).
-5. Run the deploy script to build/push images, run migrations, and deploy services.
+2. `cp backend.hcl.example backend.hcl` and set an **app-isolated** `prefix` (e.g. `tofu/<app>` — never share `tofu/state` across stacks).
+3. `cp terraform.tfvars.example terraform.tfvars`, fill in project-specific values.
+4. `cd infra && tofu init -backend-config=backend.hcl && tofu apply` — secret shells must get an enabled version before Cloud Run mounts `latest` (seed-if-empty in IaC, or sync secrets before the service is healthy).
+5. Run the deploy script to push images and update secret versions (day-2). Prefer script-owned image tags over baking mutable digests into tfvars.

@@ -47,14 +47,19 @@ cp terraform.tfvars.example terraform.tfvars
 # set invoker_members, then:
 
 ./scripts/auth-from-secret.sh          # decodes GCP_SA_KEY_B64 → ADC file
-cp backend.hcl.example backend.hcl
+cp backend.hcl.example backend.hcl     # prefix must be tofu/opencost
 tofu init -backend-config=backend.hcl
+
+# Apply creates secret shells and seed-if-empty versions (example JSON +
+# bootstrap admin placeholder) so Cloud Run can mount version=latest.
 tofu apply
 
-# Edit examples/cloud-integration.demogcp-terra2021.json (dataset/table)
-export ADMIN_TOKEN_FILE=/secure/admin_token.txt   # optional
+# Day-2 / real credentials + images (git sha tags). Tofu ignores image drift.
+export ADMIN_TOKEN_FILE=/secure/admin_token.txt   # recommended
 ./scripts/deploy.sh all
 ```
+
+`examples/cloud-integration.demogcp-terra2021.json` already points at the demogcp detailed export table (Workload Identity). Re-run `sync-secrets` after edits.
 
 ## Scripts
 
