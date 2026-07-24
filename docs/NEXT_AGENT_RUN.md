@@ -31,23 +31,21 @@ An earlier apply briefly used prefix `tofu/state` (maps-agent stack). Foreign re
    - **Name:** `GCP_SA_KEY_B64`
    - **Value:** single-line base64 of `opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com` JSON key (copy from file, do not `cat` huge lines into a flaky terminal)
 3. BQ export path (confirmed): `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_resource_v1_01E5F4_66804E_8286B7`
-4. Start a **new** Cloud Agent on branch `cursor/agents-gcp-cloudcost-9250` (or `develop` after merge) with that secret attached.
+4. Start a **new** Cloud Agent on branch **`develop`** with that secret attached.
 
 ## First message to give the new agent
 
 ```text
-Continue OpenCost Cloud Run deploy for demogcp-terra2021.
+Continue OpenCost Cloud Run work on develop for demogcp-terra2021.
 
 1. Verify secret: test -n "$GCP_SA_KEY_B64" && echo ok
 2. ./infra/scripts/auth-from-secret.sh
 3. cloud-integration: dataset=export_billing_demogcp_detailed table=gcp_billing_export_resource_v1_01E5F4_66804E_8286B7
-4. cp infra/terraform.tfvars.example infra/terraform.tfvars  (invokers include farry@terralogiq.com)
-5. cp infra/backend.hcl.example infra/backend.hcl  (prefix must be tofu/opencost)
-6. Install gcloud/tofu/docker if missing; then: cd infra && tofu init -backend-config=backend.hcl && tofu apply
-   (apply seed-if-empty secrets so Cloud Run can mount latest; does not clobber existing versions)
-7. Create ADMIN_TOKEN file and: ./infra/scripts/deploy.sh all
-   (sync-secrets + push git-sha images; tofu ignores image drift)
-8. Smoke test /model/cloudCost/status (UI ingress) — expect Connection Successful
+4. Ensure infra/terraform.tfvars and infra/backend.hcl exist locally (gitignored; prefix tofu/opencost)
+5. Install gcloud/tofu/docker if missing; then: cd infra && tofu init -backend-config=backend.hcl && tofu apply
+   (seed-if-empty secrets only; does not clobber existing versions; images ignored)
+6. Optional day-2: ADMIN_TOKEN_FILE=... ./infra/scripts/deploy.sh all
+7. Smoke test /model/cloudCost/status (UI ingress) — expect Connection Successful
 
 Project is same for deploy + BQ: demogcp-terra2021.
 Follow AGENTS.md Plan A/B and docs/architecture-compliance.md. Do not commit secrets or terraform.tfvars.
@@ -72,6 +70,5 @@ test -n "${GCP_SA_KEY_B64:-}" && echo "GCP_SA_KEY_B64 ok len=${#GCP_SA_KEY_B64}"
 
 ## Branch / PR
 
-- Branch: `cursor/agents-gcp-cloudcost-9250`
-- PR: https://github.com/fargoebie/finops/pull/3
+- **Working branch: `develop`** (feature branch merged via https://github.com/fargoebie/finops/pull/3)
 - Key paths: `infra/`, `AGENTS.md`, `docs/architecture-compliance.md`
