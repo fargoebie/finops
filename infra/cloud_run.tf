@@ -66,6 +66,12 @@ resource "google_cloud_run_v2_service" "opencost" {
         name  = "UI_PATH"
         value = "/"
       }
+      # New default UI (React Router) has no /cloud route. Legacy UI exposes
+      # Cloud Costs at /cloud, which is what cloud-cost-only deploys need.
+      env {
+        name  = "LEGACY_MODE"
+        value = "true"
+      }
 
       depends_on = ["opencost"]
 
