@@ -9,8 +9,11 @@ name_prefix = "opencost"
 # Same project: leave billing_export_project_id unset (defaults to project_id).
 # billing_export_project_id = "demogcp-terra2021"
 
-# Who may invoke Cloud Run (principle E).
+# Who may invoke Cloud Run.
+# Demo: allUsers = public URL (no identity token). Admin routes still need ADMIN_TOKEN.
+# For locked-down prod, remove allUsers and list only user:/serviceAccount: members.
 invoker_members = [
+  "allUsers",
   "user:farry@terralogiq.com",
   "serviceAccount:opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com",
 ]

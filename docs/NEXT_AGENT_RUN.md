@@ -15,7 +15,7 @@ Deployed Cloud Run cloud-cost API on `demogcp-terra2021`:
 | Table | `gcp_billing_export_resource_v1_01E5F4_66804E_8286B7` |
 | Billing account (invoice) | `01E5F4-66804E-8286B7` |
 | Tofu state | `gs://demogcp-terra2021-tofu-state` prefix **`tofu/opencost`** (isolated; do **not** use `tofu/state`) |
-| Invokers | `user:farry@terralogiq.com`, deployer SA |
+| Invokers | **`allUsers` (public URL)**, `user:farry@terralogiq.com`, deployer SA |
 
 `/cloudCost/status` → `Connection Successful` with coverage over the billing export table.
 
