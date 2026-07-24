@@ -58,10 +58,13 @@ opencost/
 │   ├── env/                # Environment variable definitions
 │   └── mcp/                # MCP server (optional; currently needs k8s path)
 ├── configs/                # Default pricing configurations
-├── docs/                   # Project docs
+├── docs/                   # Project docs (includes architecture-compliance.md)
+├── infra/                  # TARGET: OpenTofu IaC for GCP Cloud Run deploy (to be added)
 ├── graphify-out/           # Local knowledge graph (gitignored)
 └── ui/                     # UI components (main UI in opencost/opencost-ui)
 ```
+
+**Compliance baseline:** [`docs/architecture-compliance.md`](docs/architecture-compliance.md) — project-agnostic GCP architecture principles. All deploy work must satisfy those principles (see **Architecture Compliance Review** below).
 
 ## Architecture (Cloud-Cost Path)
 
@@ -240,112 +243,197 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 ---
 
-## Plan B — Deploy to a GCP project (Cloud Run first)
+## Plan B — Deploy to a GCP project (Cloud Run first, compliance-aligned)
 
-Target: cloud-cost-only OpenCost on **Cloud Run**.
+Target: cloud-cost-only OpenCost on **Cloud Run**, implemented with **OpenTofu** under `infra/` per [`docs/architecture-compliance.md`](docs/architecture-compliance.md).
 
-### B1. Project bootstrap
+> **Do not treat ad-hoc `gcloud` as the production path.** Use the commands below only for bootstrap / emergency debugging. Steady-state deploy is `infra/scripts/deploy.sh` after `tofu apply`.
+
+### B0. Compliance constraints (non-negotiable)
+
+| Principle | Required for this fork |
+|-----------|------------------------|
+| **A** Dedicated least-privilege SA | Runtime SA `opencost-cloudcost@…` only; never default Compute SA |
+| **B** Secrets by reference | `cloud-integration.json` + `ADMIN_TOKEN` in Secret Manager; mount/inject by ref |
+| **C** Network isolation | Custom VPC + subnet; Cloud Run Direct VPC egress (or connector); Private Google Access for BQ APIs |
+| **D** IAP admin | N/A unless VMs are introduced; no public SSH |
+| **E** App-layer auth on public surface | Cloud Run `--no-allow-unauthenticated`; grant `roles/run.invoker` per caller; `ADMIN_TOKEN` for admin APIs |
+| **F** Durability | BQ export is system of record; define BQ dataset retention; OpenCost memory cache is ephemeral |
+| **G** IaC + private registry | OpenTofu remote state; images only from project Artifact Registry |
+| **H** Observability | Runtime SA gets `roles/cloudtrace.agent` + `roles/monitoring.metricWriter` |
+| **I** Layout | Flat `infra/*.tf` as specified in the baseline |
+
+### B1. Bootstrap (out-of-band, once)
 
 ```bash
 export PROJECT_ID="<your-gcp-project>"
 export REGION="us-central1"
-export REPO="opencost"
-export SERVICE="opencost-cloudcost"
-export SA_EMAIL="opencost-bq-reader@${PROJECT_ID}.iam.gserviceaccount.com"
+export STATE_BUCKET="${PROJECT_ID}-tofu-state"
 
 gcloud config set project "${PROJECT_ID}"
-gcloud services enable \
-  run.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com \
-  bigquery.googleapis.com \
-  iam.googleapis.com
+
+# Remote OpenTofu state bucket (versioned) — create before first tofu init
+gcloud storage buckets create "gs://${STATE_BUCKET}" --location="${REGION}" --uniform-bucket-level-access
+gcloud storage buckets update "gs://${STATE_BUCKET}" --versioning
 ```
 
-Complete **Plan A** (export + SA IAM) in this project (or grant the SA access to the export project).
+Complete **Plan A** (resource/detailed billing export + BQ reader roles for the runtime SA). Prefer **ADC / Workload Identity authorizer** in `cloud-integration.json` (no JSON keys).
 
-### B2. Store integration config in Secret Manager
+### B2. Target `infra/` layout (to implement)
 
-```bash
-# Create secret from local file (contains no private key if using Workload Identity authorizer)
-gcloud secrets create opencost-cloud-integration \
-  --data-file=./cloud-integration.json \
-  --replication-policy=automatic
-
-# Allow the Cloud Run runtime SA to read it
-gcloud secrets add-iam-policy-binding opencost-cloud-integration \
-  --member="serviceAccount:${SA_EMAIL}" \
-  --role="roles/secretmanager.secretAccessor"
+```
+infra/
+├── provider.tf              # tofu + google provider, GCS backend
+├── variables.tf
+├── outputs.tf
+├── apis.tf                  # run, artifactregistry, secretmanager, bigquery, iam, compute, vpcaccess, …
+├── iam.tf                   # opencost-cloudcost SA + least-privilege bindings
+├── secret_manager.tf        # opencost-cloud-integration, opencost-admin-token + per-secret accessors
+├── vpc.tf                   # custom VPC, subnet, firewall default-deny, Cloud NAT, Private Google Access
+├── artifact_registry.tf     # private docker repo
+├── cloud_run.tf             # service, secret volume/env refs, invoker bindings, VPC egress
+├── monitoring_dashboard.tf
+├── scripts/deploy.sh        # build → push AR → tofu/apply or gcloud run deploy revision
+├── terraform.tfvars.example
+├── .terraform.lock.hcl
+└── .gitignore               # tfvars, .terraform/, *.tfstate*
 ```
 
-### B3. Container image
+Pin tooling as in the baseline (`tofu` ≥ 1.11.5, `hashicorp/google` ≥ 7.26.0).
 
-Option 1 — upstream image:
+### B3. Identity & secrets (principle A/B)
 
-```bash
-# Pull/retag into Artifact Registry if desired
-gcloud artifacts repositories create "${REPO}" \
-  --repository-format=docker --location="${REGION}" || true
+- **One SA per workload:** `opencost-cloudcost@${PROJECT_ID}.iam.gserviceaccount.com`
+- **Grants (minimum):**
+  - Project (or dataset-scoped where possible): `roles/bigquery.dataViewer`, `roles/bigquery.jobUser`, `roles/bigquery.user` for billing export access
+  - Per-secret: `roles/secretmanager.secretAccessor` on `opencost-cloud-integration` and `opencost-admin-token` only
+  - Observability: `roles/cloudtrace.agent`, `roles/monitoring.metricWriter`
+- **Never** attach `roles/owner`, `roles/editor`, or the default Compute Engine SA to Cloud Run
+- **Human access:** grant `roles/run.invoker` / `roles/run.developer` to individual user emails, not shared keys
+- **Secrets:** write values with deploy script / `gcloud secrets versions add`; never commit keys; never put secret literals in Cloud Run env YAML or `.tfvars`
 
-docker pull ghcr.io/opencost/opencost:latest
-docker tag ghcr.io/opencost/opencost:latest \
-  "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/opencost:latest"
-docker push "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/opencost:latest"
+`cloud-integration.json` for Cloud Run should use:
+
+```json
+"authorizer": { "authorizerType": "GCPWorkloadIdentity" }
 ```
 
-Option 2 — build from this repo (when you need fork changes):
+so the runtime SA identity is used (no private key in the secret).
+
+### B4. Network (principle C)
+
+Even though OpenCost talks to managed BigQuery (not a self-hosted DB):
+
+1. Create a **custom VPC + subnet** (no default network).
+2. Enable **Private Google Access** on the subnet.
+3. Attach Cloud Run with **Direct VPC egress** (preferred) or a Serverless VPC Access connector.
+4. Egress mode: private ranges + Google APIs via PGA/NAT as required; avoid giving the revision a needless public data-plane.
+5. Firewall: default deny; only open what is required (typically none inbound to VPC for this API-only service).
+
+Data-store public-IP rules in the baseline are **N/A** (no Cloud SQL/Redis in v1). If those are added later, they must be private-IP + PSA.
+
+### B5. Image & deploy (principle G)
+
+1. Build for a pinned platform (`linux/amd64`) and tag immutably (`git sha` / semver) — avoid floating `latest` in prod.
+2. Push **only** to project Artifact Registry:  
+   `${REGION}-docker.pkg.dev/${PROJECT_ID}/opencost/opencost:<tag>`
+3. Cloud Run pulls from that private repo (AR reader on the runtime or Cloud Run agent SA as required).
+4. Orchestrate via `infra/scripts/deploy.sh`: build → push → update Cloud Run revision (or `tofu apply` for infra-owned service template).
+
+### B6. Cloud Run service shape (principle E/H)
+
+Declarative equivalent of:
+
+- Image from private AR (pinned tag)
+- Service account = `opencost-cloudcost@…`
+- Port `9003`
+- Env (non-secret): `CLOUD_COST_ENABLED=true`, `CONFIG_PATH=/var/configs`, `API_PORT=9003`
+- **No** `KUBERNETES_PORT`
+- Secrets by reference:
+  - volume/file: `/var/configs/cloud-integration.json` ← `opencost-cloud-integration`
+  - env: `ADMIN_TOKEN` ← `opencost-admin-token`
+- Ingress: internal + load balancer **or** all with **IAM auth required** (`invoker` IAM). Prefer not publicly invokable without identity.
+- VPC egress attached (B4)
+- CPU/memory sized for BQ ingest; min instances as needed for cold-start tolerance
+
+### B7. Auth model for callers (principle E)
+
+OpenCost OSS does not ship OAuth/session cookies. For this API-only deploy:
+
+1. **Transport / identity:** Cloud Run IAM (`roles/run.invoker`) for every caller (user or SA).
+2. **Admin APIs:** `ADMIN_TOKEN` bearer (secret-injected).
+3. If a public UI is added later: put it behind IAP or OAuth with explicit domain allowlists; do not expose `/cloudCost` anonymously.
 
 ```bash
-just build-local   # or docker build via project Dockerfiles
-# push resulting image to Artifact Registry
-```
-
-### B4. Deploy Cloud Run
-
-Mount the secret as a file at `/var/configs/cloud-integration.json` and do **not** set `KUBERNETES_PORT`.
-
-```bash
-gcloud run deploy "${SERVICE}" \
-  --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/opencost:latest" \
-  --region="${REGION}" \
-  --service-account="${SA_EMAIL}" \
-  --port=9003 \
-  --cpu=1 --memory=1Gi \
-  --min-instances=0 --max-instances=2 \
-  --no-allow-unauthenticated \
-  --set-env-vars="CLOUD_COST_ENABLED=true,CONFIG_PATH=/var/configs,API_PORT=9003" \
-  --set-secrets="/var/configs/cloud-integration.json=opencost-cloud-integration:latest"
-```
-
-Set `ADMIN_TOKEN` via Secret Manager / env when you need rebuild endpoints:
-
-```bash
-gcloud run services update "${SERVICE}" --region="${REGION}" \
-  --set-secrets="ADMIN_TOKEN=opencost-admin-token:latest"
-```
-
-### B5. Invoke securely
-
-```bash
-export OPENCOST_URL="$(gcloud run services describe "${SERVICE}" \
-  --region="${REGION}" --format='value(status.url)')"
-
-# Caller identity needs roles/run.invoker on the service
+# Example authenticated probe (after IAM invoker grant)
+export OPENCOST_URL="https://opencost-cloudcost-....a.run.app"
 curl -sS -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
   "${OPENCOST_URL}/cloudCost/status" | jq .
 ```
 
-### B6. Smoke test checklist
+### B8. Data lifecycle (principle F)
 
-- [ ] Cloud Run revision healthy
-- [ ] `/cloudCost/status` shows GCP integration connected
-- [ ] `/cloudCost?window=7d&aggregate=service` returns rows
-- [ ] Logs show BigQuery queries succeeding (no 403/404 on table)
-- [ ] Secret is not baked into the image; SA has least privilege
+| Store | Policy |
+|-------|--------|
+| BigQuery billing export | System of record; set dataset/table retention to match finance policy |
+| OpenCost in-memory repo | Ephemeral cache (~`CLOUD_COST_*` retention envs); rebuild after redeploy |
+| Secret versions | Enable secret versioning; disable old versions after rotation |
+| Tofu state bucket | Versioning on; uniform bucket-level access; no force-destroy |
 
-### B7. Optional later: GKE Helm
+### B9. Smoke test checklist
 
-Not the primary path. If needed later: Helm chart + `opencost.cloudCost.enabled=true` + `cloudIntegrationSecret`, with Workload Identity bound to the same BQ reader SA. Prefer Cloud Run until Kubernetes allocation is in scope.
+- [ ] `tofu plan` clean; state in versioned GCS bucket
+- [ ] Cloud Run revision healthy; image digest from **private AR**
+- [ ] Runtime SA is dedicated (not default compute); IAM bindings match B3
+- [ ] Secrets mounted by reference; no secret literals in service YAML / tfvars
+- [ ] Unauthenticated `curl` to service URL fails; identity-token call succeeds
+- [ ] `/cloudCost/status` connected; `/cloudCost?window=7d&aggregate=service` returns rows
+- [ ] Trace/metric roles present; basic dashboard or log-based alert exists
+- [ ] No JSON service-account key in `cloud-integration` secret (WI/ADC authorizer)
+
+### B10. Optional later: GKE Helm
+
+Not the primary path. If added, reuse the same dedicated SA via Workload Identity, same secrets pattern, and same VPC principles. Prefer Cloud Run until Kubernetes allocation is in scope.
+
+---
+
+## Architecture Compliance Review
+
+Reviewed against [`docs/architecture-compliance.md`](docs/architecture-compliance.md) for the **cloud-cost-only Cloud Run** design (Plans A/B).
+
+### Non-negotiables
+
+| ID | Principle | Status for documented target | Notes / required action |
+|----|-----------|------------------------------|-------------------------|
+| **A** | Dedicated least-privilege SAs | **Required / designed** | One runtime SA; no default Compute SA; BQ + per-secret + observability roles only |
+| **B** | Managed secrets by reference | **Required / designed** | Secret Manager for integration JSON + `ADMIN_TOKEN`; WI authorizer (no key material) |
+| **C** | No public IP on data stores | **N/A (v1)** | No Cloud SQL/Redis; BQ is Google-managed. Still require custom VPC + PGA + restricted Cloud Run egress |
+| **D** | IAP-only admin access | **N/A (v1)** | No VMs. If a bastion/UI VM appears later, IAP + OS Login become mandatory |
+| **E** | App-layer auth on public services | **Required / designed** | Cloud Run IAM invoker + `ADMIN_TOKEN` for admin routes; no anonymous `/cloudCost` |
+
+### Other principles
+
+| ID | Principle | Status | Gap vs previous click-ops Plan B |
+|----|-----------|--------|----------------------------------|
+| **F** | Data durability & lifecycle | **Partial → defined** | BQ export retention must be set in GCP; OpenCost cache is ephemeral by design |
+| **G** | Declarative deploy + private registry | **Gap → required** | Previous plan allowed `gcloud`/`ghcr.io`; target is OpenTofu + project Artifact Registry only |
+| **H** | Traces & metrics on runtime SA | **Gap → required** | Add `cloudtrace.agent` + `monitoring.metricWriter`; add dashboard tf |
+| **I** | `infra/` OpenTofu layout | **Gap → required** | `infra/` does not exist yet; create per baseline before production deploy |
+
+### Verdict
+
+- **Current repo state:** Plans A/B documented; **no `infra/` yet** → **not production-compliant**.
+- **Documented target (this AGENTS.md):** Cloud Run + OpenTofu + Secret Manager + private AR + dedicated SA + IAM invoker **can satisfy** A/B/E/G/H/I; C/D apply as N/A or VPC-egress hardening for v1.
+- **Agent rule:** When adding deploy/IaC, implement the `infra/` layout and do not regress to public unauthenticated Cloud Run, shared SAs, secret literals, or public GHCR-only production pulls.
+
+### Applicable vs not applicable (this SKU)
+
+| Baseline item | Applies? |
+|---------------|----------|
+| Cloud SQL / Redis private IP, backups, deletion protection | No (not in v1 architecture) |
+| Schema migration job before deploy | No (no app DB) |
+| Cloud Scheduler dedicated invoker SA | Optional (only if scheduled rebuild jobs are added) |
+| Custom VPC, AR, Secret Manager, Cloud Run IAM, tofu state | **Yes** |
 
 ---
 
