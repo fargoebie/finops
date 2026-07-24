@@ -4,4 +4,5 @@
 #   tofu init -backend-config=backend.hcl
 
 bucket = "demogcp-terra2021-tofu-state"
-prefix = "tofu/state"
+# Isolated from other stacks in this project (do not reuse tofu/state).
+prefix = "tofu/opencost"

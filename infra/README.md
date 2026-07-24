@@ -11,6 +11,18 @@
 | `opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com` | Yes — base64 in Cloud Agent secret `GCP_SA_KEY_B64` | tofu / deploy.sh |
 | `opencost-cloudcost@demogcp-terra2021.iam.gserviceaccount.com` | **No** (WI/ADC on Cloud Run) | Read BQ billing export |
 
+## BigQuery billing export (Plan A)
+
+| Field | Value |
+|-------|--------|
+| Dataset | `opencost_billing` (location `US`) |
+| Table | `gcp_billing_export_resource_v1_016618_1D5A80_CF4367` |
+| Billing account | `016618-1D5A80-CF4367` |
+
+Enable **Detailed usage cost** export in the Cloud Billing console into that dataset (no public API). Config file: `examples/cloud-integration.demogcp-terra2021.json`.
+
+OpenTofu remote state prefix must be **`tofu/opencost`** (see `backend.hcl.example`) — do not share `tofu/state` with other stacks.
+
 ## One-time on an admin machine
 
 ```bash
@@ -20,8 +32,7 @@
 # 2) Create tofu state bucket
 ./scripts/bootstrap-state-bucket.sh
 
-# 3) Enable billing export (resource/detailed) in demogcp-terra2021, then edit:
-#    examples/cloud-integration.demogcp-terra2021.json
+# 3) Enable billing export (resource/detailed) into opencost_billing (console)
 ```
 
 Add Cloud Agent secret:

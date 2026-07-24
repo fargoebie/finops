@@ -11,8 +11,8 @@ name_prefix = "opencost"
 
 # Who may invoke Cloud Run (principle E).
 invoker_members = [
-  # "user:you@example.com",
-  # "serviceAccount:opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com",
+  "user:farry@terralogiq.com",
+  "serviceAccount:opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com",
 ]
 
 image_tag = "bootstrap"
