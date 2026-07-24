@@ -251,7 +251,7 @@ Target: cloud-cost-only OpenCost on **Cloud Run**, implemented with **OpenTofu**
 Scripts default there via [`infra/scripts/env.sh`](infra/scripts/env.sh). Cloud Agent deploy auth: secret `GCP_SA_KEY_B64` (base64 of `opencost-deployer` JSON) → [`infra/scripts/auth-from-secret.sh`](infra/scripts/auth-from-secret.sh).
 
 **Live Cloud Run (cloud-cost):** `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app`  
-**BQ export target:** dataset `opencost_billing`, table `gcp_billing_export_resource_v1_016618_1D5A80_CF4367` (enable Detailed usage cost in Billing console — console-only).  
+**BQ export target:** `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_resource_v1_01E5F4_66804E_8286B7`  
 **Tofu state prefix:** `tofu/opencost` on `gs://demogcp-terra2021-tofu-state` (never reuse `tofu/state`).
 
 **New Cloud Agent runs:** secrets do **not** reload mid-session. After adding `GCP_SA_KEY_B64`, start a new run and follow [`docs/NEXT_AGENT_RUN.md`](docs/NEXT_AGENT_RUN.md).

@@ -11,27 +11,13 @@ Deployed Cloud Run cloud-cost API on `demogcp-terra2021`:
 | Service URL | `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app` |
 | Image | `us-central1-docker.pkg.dev/demogcp-terra2021/opencost/opencost:97bc460a` |
 | Runtime SA | `opencost-cloudcost@demogcp-terra2021.iam.gserviceaccount.com` |
-| BQ dataset | `opencost_billing` (US) — **created** |
-| Expected table | `gcp_billing_export_resource_v1_016618_1D5A80_CF4367` |
-| Billing account | `016618-1D5A80-CF4367` |
+| BQ dataset | `export_billing_demogcp_detailed` (US) |
+| Table | `gcp_billing_export_resource_v1_01E5F4_66804E_8286B7` |
+| Billing account (invoice) | `01E5F4-66804E-8286B7` |
 | Tofu state | `gs://demogcp-terra2021-tofu-state` prefix **`tofu/opencost`** (isolated; do **not** use `tofu/state`) |
 | Invokers | `user:farry@terralogiq.com`, deployer SA |
 
-`/cloudCost/status` returns `connectionStatus: "Data Missing"` until the console export creates the table.
-
-### Remaining human step (console-only — no public API)
-
-1. Open **Billing → Billing export → BigQuery export**.
-2. Enable **Detailed usage cost** for billing account `016618-1D5A80-CF4367`.
-3. Project + dataset: `demogcp-terra2021` / `opencost_billing`.
-4. Wait for table `gcp_billing_export_resource_v1_016618_1D5A80_CF4367` (export lag is normal).
-5. Probe again:
-
-```bash
-export OPENCOST_URL="https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app"
-curl -sS -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
-  "${OPENCOST_URL}/cloudCost/status" | jq .
-```
+`/cloudCost/status` → `Connection Successful` with coverage over the billing export table.
 
 ### Note on shared state
 
@@ -43,7 +29,7 @@ An earlier apply briefly used prefix `tofu/state` (maps-agent stack). Foreign re
 2. Add Cursor Cloud Agent / environment secret:
    - **Name:** `GCP_SA_KEY_B64`
    - **Value:** single-line base64 of `opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com` JSON key (copy from file, do not `cat` huge lines into a flaky terminal)
-3. Ensure GCP **resource/detailed** BigQuery billing export exists in `demogcp-terra2021` dataset `opencost_billing` (see remaining human step above).
+3. BQ export path (confirmed): `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_resource_v1_01E5F4_66804E_8286B7`
 4. Start a **new** Cloud Agent on branch `cursor/agents-gcp-cloudcost-9250` (or `develop` after merge) with that secret attached.
 
 ## First message to give the new agent
@@ -53,12 +39,12 @@ Continue OpenCost Cloud Run deploy for demogcp-terra2021.
 
 1. Verify secret: test -n "$GCP_SA_KEY_B64" && echo ok
 2. ./infra/scripts/auth-from-secret.sh
-3. cloud-integration already set: dataset=opencost_billing table=gcp_billing_export_resource_v1_016618_1D5A80_CF4367
+3. cloud-integration: dataset=export_billing_demogcp_detailed table=gcp_billing_export_resource_v1_01E5F4_66804E_8286B7
 4. cp infra/terraform.tfvars.example infra/terraform.tfvars  (invokers include farry@terralogiq.com)
 5. cp infra/backend.hcl.example infra/backend.hcl  (prefix must be tofu/opencost)
 6. Install gcloud/tofu/docker if missing; then: cd infra && tofu init -backend-config=backend.hcl && tofu apply
 7. Create ADMIN_TOKEN file and: ./infra/scripts/deploy.sh all
-8. Smoke test /cloudCost/status with identity token; if Data Missing, enable detailed BQ export in console
+8. Smoke test /cloudCost/status — expect Connection Successful
 
 Project is same for deploy + BQ: demogcp-terra2021.
 Follow AGENTS.md Plan A/B and docs/architecture-compliance.md. Do not commit secrets or terraform.tfvars.

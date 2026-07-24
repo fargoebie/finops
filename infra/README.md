@@ -15,11 +15,11 @@
 
 | Field | Value |
 |-------|--------|
-| Dataset | `opencost_billing` (location `US`) |
-| Table | `gcp_billing_export_resource_v1_016618_1D5A80_CF4367` |
-| Billing account | `016618-1D5A80-CF4367` |
+| Dataset | `export_billing_demogcp_detailed` (location `US`) |
+| Table | `gcp_billing_export_resource_v1_01E5F4_66804E_8286B7` |
+| Fully qualified | `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_resource_v1_01E5F4_66804E_8286B7` |
 
-Enable **Detailed usage cost** export in the Cloud Billing console into that dataset (no public API). Config file: `examples/cloud-integration.demogcp-terra2021.json`.
+Config file: `examples/cloud-integration.demogcp-terra2021.json`.
 
 OpenTofu remote state prefix must be **`tofu/opencost`** (see `backend.hcl.example`) — do not share `tofu/state` with other stacks.
 
@@ -32,7 +32,7 @@ OpenTofu remote state prefix must be **`tofu/opencost`** (see `backend.hcl.examp
 # 2) Create tofu state bucket
 ./scripts/bootstrap-state-bucket.sh
 
-# 3) Enable billing export (resource/detailed) into opencost_billing (console)
+# 3) Confirm billing export table export_billing_demogcp_detailed.gcp_billing_export_resource_v1_01E5F4_66804E_8286B7
 ```
 
 Add Cloud Agent secret:
