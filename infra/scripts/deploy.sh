@@ -127,15 +127,15 @@ cmd_sync_secrets() {
 
 cmd_deploy_revision() {
   require_auth
-  # Multi-container: update each named container image explicitly.
+  # Non-container flags must come before --container (gcloud requirement).
   gcloud run services update "${SERVICE}" \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
+    --quiet \
     --container=opencost-ui \
     --image="${UI_IMAGE}" \
     --container=opencost \
-    --image="${IMAGE}" \
-    --quiet
+    --image="${IMAGE}"
   echo "Deployed ${SERVICE} ui=${UI_IMAGE} api=${IMAGE}"
   gcloud run services describe "${SERVICE}" \
     --project="${PROJECT_ID}" \

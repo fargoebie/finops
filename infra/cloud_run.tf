@@ -168,12 +168,12 @@ resource "google_cloud_run_v2_service" "opencost" {
   ]
 
   lifecycle {
-    # deploy.sh updates image tags; avoid thrash if apply uses a stale default tag.
     ignore_changes = [
       client,
       client_version,
-      template[0].containers[0].image,
-      template[0].containers[1].image,
+      # Images are updated by deploy.sh (git sha tags). Do not ignore by container
+      # index — reordering (e.g. adding the UI ingress) previously left the UI
+      # container stuck on the API image digest.
     ]
   }
 }
