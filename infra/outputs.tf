@@ -9,13 +9,23 @@ output "artifact_registry_repository" {
 }
 
 output "opencost_image" {
-  description = "Fully-qualified image name (without tag)."
+  description = "Fully-qualified API image name (without tag)."
   value       = local.opencost_image
 }
 
+output "opencost_ui_image" {
+  description = "Fully-qualified UI image name (without tag)."
+  value       = local.opencost_ui_image
+}
+
 output "cloud_run_service_uri" {
-  description = "Cloud Run service URI (requires invoker IAM)."
+  description = "Cloud Run service URI (UI ingress; /cloud for Cloud Costs)."
   value       = google_cloud_run_v2_service.opencost.uri
+}
+
+output "cloud_run_ui_url" {
+  description = "Cloud Costs UI path on the public service URL."
+  value       = "${google_cloud_run_v2_service.opencost.uri}/cloud"
 }
 
 output "cloud_run_service_name" {

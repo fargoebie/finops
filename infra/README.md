@@ -64,7 +64,19 @@ export ADMIN_TOKEN_FILE=/secure/admin_token.txt   # optional
 | `create-deployer-sa.sh` | Create deployer SA + roles + base64 for agent secret |
 | `auth-from-secret.sh` | Decode `GCP_SA_KEY_B64` → `GOOGLE_APPLICATION_CREDENTIALS` |
 | `bootstrap-state-bucket.sh` | `gs://demogcp-terra2021-tofu-state` + versioning |
-| `deploy.sh` | push AR image, sync secrets, update Cloud Run |
+| `deploy.sh` | push API+UI AR images, sync secrets, update Cloud Run |
+
+## UI (Option B — sidecar)
+
+Cloud Run runs **two containers** in one service:
+
+| Container | Port | Role |
+|-----------|------|------|
+| `opencost-ui` | **9090** (ingress) | SPA + nginx proxy `/model` → API |
+| `opencost` | 9003 (localhost only) | Cloud Cost API → BigQuery |
+
+UI env: `API_SERVER=127.0.0.1`, `API_PORT=9003`.  
+Public Cloud Costs page: `${cloud_run_service_uri}/cloud`
 
 ## Intentionally omitted (v1)
 

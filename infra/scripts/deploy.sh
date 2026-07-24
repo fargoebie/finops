@@ -2,6 +2,8 @@
 # deploy.sh — build → push private AR → sync secrets → update Cloud Run
 # Defaults pinned to demogcp-terra2021 (same project for deploy + BQ).
 #
+# Multi-container service: opencost-ui (ingress :9090) + opencost API sidecar (:9003).
+#
 # Typical agent flow:
 #   ./infra/scripts/auth-from-secret.sh          # from GCP_SA_KEY_B64
 #   ./infra/scripts/deploy.sh all
@@ -15,10 +17,12 @@ source "${SCRIPT_DIR}/env.sh"
 IMAGE_TAG="${IMAGE_TAG:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 SOURCE_IMAGE="${SOURCE_IMAGE:-ghcr.io/opencost/opencost:latest}"
+SOURCE_UI_IMAGE="${SOURCE_UI_IMAGE:-ghcr.io/opencost/opencost-ui:latest}"
 CLOUD_INTEGRATION_FILE="${CLOUD_INTEGRATION_FILE:-${SCRIPT_DIR}/../examples/cloud-integration.demogcp-terra2021.json}"
 ADMIN_TOKEN_FILE="${ADMIN_TOKEN_FILE:-}"
 
 IMAGE="${AR_HOST}/${PROJECT_ID}/${AR_REPO}/opencost:${IMAGE_TAG}"
+UI_IMAGE="${AR_HOST}/${PROJECT_ID}/${AR_REPO}/opencost-ui:${IMAGE_TAG}"
 
 usage() {
   cat <<EOF
@@ -27,14 +31,14 @@ Usage: $(basename "$0") <command>
 Project: ${PROJECT_ID}  Region: ${REGION}  Service: ${SERVICE}
 
 Commands:
-  push-image       Pull SOURCE_IMAGE, push to private Artifact Registry
+  push-image       Pull SOURCE_IMAGE + SOURCE_UI_IMAGE, push to private AR
   sync-secrets     Upload cloud-integration.json and optional ADMIN_TOKEN
-  deploy-revision  Point Cloud Run at IMAGE_TAG
+  deploy-revision  Point Cloud Run containers at IMAGE_TAG
   all              push-image && sync-secrets && deploy-revision
   print-env        Show resolved names
 
 Env overrides:
-  PROJECT_ID REGION NAME_PREFIX IMAGE_TAG SOURCE_IMAGE PLATFORM
+  PROJECT_ID REGION NAME_PREFIX IMAGE_TAG SOURCE_IMAGE SOURCE_UI_IMAGE PLATFORM
   CLOUD_INTEGRATION_FILE  (default: infra/examples/cloud-integration.demogcp-terra2021.json)
   ADMIN_TOKEN_FILE
 EOF
@@ -66,6 +70,7 @@ BILLING_PROJECT_ID=${BILLING_PROJECT_ID}
 REGION=${REGION}
 SERVICE=${SERVICE}
 IMAGE=${IMAGE}
+UI_IMAGE=${UI_IMAGE}
 RUNTIME_SA_EMAIL=${RUNTIME_SA_EMAIL}
 DEPLOY_SA_EMAIL=${DEPLOY_SA_EMAIL}
 SECRET_INTEGRATION=${SECRET_INTEGRATION}
@@ -78,10 +83,16 @@ EOF
 cmd_push_image() {
   require_auth
   gcloud auth configure-docker "${AR_HOST}" --quiet
+
   docker pull --platform "${PLATFORM}" "${SOURCE_IMAGE}"
   docker tag "${SOURCE_IMAGE}" "${IMAGE}"
   docker push "${IMAGE}"
   echo "Pushed ${IMAGE}"
+
+  docker pull --platform "${PLATFORM}" "${SOURCE_UI_IMAGE}"
+  docker tag "${SOURCE_UI_IMAGE}" "${UI_IMAGE}"
+  docker push "${UI_IMAGE}"
+  echo "Pushed ${UI_IMAGE}"
 }
 
 cmd_sync_secrets() {
@@ -116,12 +127,16 @@ cmd_sync_secrets() {
 
 cmd_deploy_revision() {
   require_auth
+  # Multi-container: update each named container image explicitly.
   gcloud run services update "${SERVICE}" \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
+    --container=opencost-ui \
+    --image="${UI_IMAGE}" \
+    --container=opencost \
     --image="${IMAGE}" \
     --quiet
-  echo "Deployed ${SERVICE} -> ${IMAGE}"
+  echo "Deployed ${SERVICE} ui=${UI_IMAGE} api=${IMAGE}"
   gcloud run services describe "${SERVICE}" \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \

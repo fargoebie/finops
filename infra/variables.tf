@@ -40,15 +40,27 @@ variable "image_tag" {
 }
 
 variable "cloud_run_cpu" {
-  description = "Cloud Run CPU limit."
+  description = "Cloud Run CPU limit for the API sidecar."
   type        = string
   default     = "1"
 }
 
 variable "cloud_run_memory" {
-  description = "Cloud Run memory limit."
+  description = "Cloud Run memory limit for the API sidecar."
   type        = string
   default     = "1Gi"
+}
+
+variable "cloud_run_ui_cpu" {
+  description = "Cloud Run CPU limit for the UI ingress container."
+  type        = string
+  default     = "0.5"
+}
+
+variable "cloud_run_ui_memory" {
+  description = "Cloud Run memory limit for the UI ingress container."
+  type        = string
+  default     = "256Mi"
 }
 
 variable "cloud_run_min_instances" {
