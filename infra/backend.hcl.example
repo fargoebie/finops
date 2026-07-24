@@ -1,0 +1,9 @@
+# Copy to backend.hcl (gitignored) or pass:
+#   tofu init -backend-config=backend.hcl
+#
+# Create the bucket out-of-band with versioning + uniform bucket-level access:
+#   gsutil mb -l us-central1 gs://${PROJECT_ID}-tofu-state
+#   gsutil versioning set on gs://${PROJECT_ID}-tofu-state
+
+bucket = "my-gcp-project-tofu-state"
+prefix = "tofu/state"

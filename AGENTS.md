@@ -59,7 +59,7 @@ opencost/
 │   └── mcp/                # MCP server (optional; currently needs k8s path)
 ├── configs/                # Default pricing configurations
 ├── docs/                   # Project docs (includes architecture-compliance.md)
-├── infra/                  # TARGET: OpenTofu IaC for GCP Cloud Run deploy (to be added)
+├── infra/                  # OpenTofu IaC for GCP Cloud Run (cloud-cost-only)
 ├── graphify-out/           # Local knowledge graph (gitignored)
 └── ui/                     # UI components (main UI in opencost/opencost-ui)
 ```
@@ -279,25 +279,21 @@ gcloud storage buckets update "gs://${STATE_BUCKET}" --versioning
 
 Complete **Plan A** (resource/detailed billing export + BQ reader roles for the runtime SA). Prefer **ADC / Workload Identity authorizer** in `cloud-integration.json` (no JSON keys).
 
-### B2. Target `infra/` layout (to implement)
+### B2. `infra/` layout (scaffolded)
+
+Implemented under [`infra/`](infra/) (see [`infra/README.md`](infra/README.md)):
 
 ```
 infra/
-├── provider.tf              # tofu + google provider, GCS backend
-├── variables.tf
-├── outputs.tf
-├── apis.tf                  # run, artifactregistry, secretmanager, bigquery, iam, compute, vpcaccess, …
-├── iam.tf                   # opencost-cloudcost SA + least-privilege bindings
-├── secret_manager.tf        # opencost-cloud-integration, opencost-admin-token + per-secret accessors
-├── vpc.tf                   # custom VPC, subnet, firewall default-deny, Cloud NAT, Private Google Access
-├── artifact_registry.tf     # private docker repo
-├── cloud_run.tf             # service, secret volume/env refs, invoker bindings, VPC egress
-├── monitoring_dashboard.tf
-├── scripts/deploy.sh        # build → push AR → tofu/apply or gcloud run deploy revision
-├── terraform.tfvars.example
-├── .terraform.lock.hcl
-└── .gitignore               # tfvars, .terraform/, *.tfstate*
+├── provider.tf / variables.tf / outputs.tf / locals.tf / apis.tf
+├── iam.tf / secret_manager.tf / vpc.tf
+├── artifact_registry.tf / cloud_run.tf / monitoring_dashboard.tf
+├── scripts/deploy.sh
+├── terraform.tfvars.example / backend.hcl.example
+├── .terraform.lock.hcl / .gitignore / README.md
 ```
+
+Omitted on purpose for v1 (N/A): `cloud_sql.tf`, `redis_vm.tf`, `cloud_scheduler.tf`, `gcs.tf`.
 
 Pin tooling as in the baseline (`tofu` ≥ 1.11.5, `hashicorp/google` ≥ 7.26.0).
 
@@ -422,9 +418,9 @@ Reviewed against [`docs/architecture-compliance.md`](docs/architecture-complianc
 
 ### Verdict
 
-- **Current repo state:** Plans A/B documented; **no `infra/` yet** → **not production-compliant**.
-- **Documented target (this AGENTS.md):** Cloud Run + OpenTofu + Secret Manager + private AR + dedicated SA + IAM invoker **can satisfy** A/B/E/G/H/I; C/D apply as N/A or VPC-egress hardening for v1.
-- **Agent rule:** When adding deploy/IaC, implement the `infra/` layout and do not regress to public unauthenticated Cloud Run, shared SAs, secret literals, or public GHCR-only production pulls.
+- **Current repo state:** `infra/` OpenTofu scaffold **exists** (APIs, IAM, secrets, VPC, AR, Cloud Run, dashboard, `scripts/deploy.sh`). Still **not production-complete** until applied to a real GCP project with seeded secrets, a pushed AR image, billing export, and invoker grants.
+- **Documented target:** Cloud Run + OpenTofu + Secret Manager + private AR + dedicated SA + IAM invoker **satisfies** A/B/E/G/H/I in design; C via custom VPC + PGA + Direct VPC egress; D N/A for v1.
+- **Agent rule:** Extend `infra/` rather than inventing click-ops. Do not regress to public unauthenticated Cloud Run, shared/default Compute SAs, secret literals, or GHCR-only production pulls.
 
 ### Applicable vs not applicable (this SKU)
 
@@ -569,6 +565,7 @@ log.Debugf("Detailed debug information")
 
 ## Useful Links
 
+- [Architecture compliance baseline](docs/architecture-compliance.md) (this fork)
 - [OpenCost GCP configuration](https://www.opencost.io/docs/configuration/gcp/)
 - [OpenCost Docker / Kubernetesless cloud costs](https://www.opencost.io/docs/installation/docker/)
 - [OpenCost Cloud Cost API](https://www.opencost.io/docs/integrations/api/)
