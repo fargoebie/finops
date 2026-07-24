@@ -250,6 +250,8 @@ Target: cloud-cost-only OpenCost on **Cloud Run**, implemented with **OpenTofu**
 **Active project (deploy + BQ same):** `demogcp-terra2021`  
 Scripts default there via [`infra/scripts/env.sh`](infra/scripts/env.sh). Cloud Agent deploy auth: secret `GCP_SA_KEY_B64` (base64 of `opencost-deployer` JSON) → [`infra/scripts/auth-from-secret.sh`](infra/scripts/auth-from-secret.sh).
 
+**New Cloud Agent runs:** secrets do **not** reload mid-session. After adding `GCP_SA_KEY_B64`, start a new run and follow [`docs/NEXT_AGENT_RUN.md`](docs/NEXT_AGENT_RUN.md).
+
 > **Do not treat ad-hoc `gcloud` as the production path.** Use the commands below only for bootstrap / emergency debugging. Steady-state deploy is `infra/scripts/deploy.sh` after `tofu apply`.
 
 ### B0. Compliance constraints (non-negotiable)
