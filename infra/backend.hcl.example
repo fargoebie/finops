@@ -1,0 +1,8 @@
+# Copy to backend.hcl (gitignored):
+#   cp backend.hcl.example backend.hcl
+#   ./scripts/bootstrap-state-bucket.sh
+#   tofu init -backend-config=backend.hcl
+
+bucket = "demogcp-terra2021-tofu-state"
+# Isolated from other stacks in this project (do not reuse tofu/state).
+prefix = "tofu/opencost"

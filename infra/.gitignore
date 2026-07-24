@@ -1,0 +1,14 @@
+# Local OpenTofu / Terraform artifacts — never commit
+terraform.tfvars
+backend.hcl
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
