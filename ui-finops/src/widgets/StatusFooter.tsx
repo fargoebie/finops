@@ -5,12 +5,14 @@ type StatusFooterProps = {
   currentWindow: ResolvedWindow;
   priorWindow: ResolvedWindow;
   statusRow: CloudCostStatusRow | null;
+  unmappedCount: number;
 };
 
 export function StatusFooter({
   currentWindow,
   priorWindow,
   statusRow,
+  unmappedCount,
 }: StatusFooterProps) {
   return (
     <footer className="status-footer" aria-label="Cloud cost status">
@@ -35,6 +37,10 @@ export function StatusFooter({
       <div>
         <span className="footer-label">Next run</span>
         <strong>{statusRow?.nextRun ?? "Unavailable"}</strong>
+      </div>
+      <div>
+        <span className="footer-label">Unmapped services</span>
+        <strong>{unmappedCount}</strong>
       </div>
     </footer>
   );

@@ -4,10 +4,12 @@ import { formatMoney } from "./format/money";
 import { useInformData } from "./hooks/useInformData";
 import type { WindowPreset } from "./types/viewModels";
 import { CategoryMix } from "./widgets/CategoryMix";
+import { CreditsNetVsList } from "./widgets/CreditsNetVsList";
 import { ExecPulse } from "./widgets/ExecPulse";
 import { ProjectShowback } from "./widgets/ProjectShowback";
 import { ServiceDrivers } from "./widgets/ServiceDrivers";
 import { StatusFooter } from "./widgets/StatusFooter";
+import { TopMovers } from "./widgets/TopMovers";
 
 const presets: Array<{ label: string; value: WindowPreset }> = [
   { label: "7d", value: "7d" },
@@ -15,11 +17,6 @@ const presets: Array<{ label: string; value: WindowPreset }> = [
   { label: "MTD", value: "mtd" },
   { label: "Invoice", value: "invoice" },
 ];
-
-const sections = [
-  "5. Credits & net vs list",
-  "6. Top movers",
-] as const;
 
 type AppProps = {
   initialInvoiceMonth?: string;
@@ -133,19 +130,15 @@ export default function App({
         <CategoryMix invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
         <ServiceDrivers invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
         <ProjectShowback invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
-        {sections.map((title) => (
-          <section className="placeholder-card" key={title}>
-            <p className="eyebrow">Placeholder</p>
-            <h2>{title}</h2>
-            <p>Reserved for the Task 9+ data widget implementation.</p>
-          </section>
-        ))}
+        <CreditsNetVsList invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
+        <TopMovers invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
       </div>
 
       <StatusFooter
         currentWindow={informData.currentWindow}
         priorWindow={informData.priorWindow}
         statusRow={informData.statusRow}
+        unmappedCount={informData.unmappedCount}
       />
     </main>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CloudCostResponse } from "../types/cloudCost";
-import { fetchExecPulseTotals, percentChange } from "./useInformData";
+import { fetchExecPulseTotals, fetchUnmappedCount, percentChange } from "./useInformData";
 
 function response(list: number, net: number): CloudCostResponse {
   return {
@@ -13,6 +13,30 @@ function response(list: number, net: number): CloudCostResponse {
               listCost: { cost: list },
               netCost: { cost: net },
               properties: { provider: "gcp" },
+            },
+          },
+        },
+      ],
+    },
+  };
+}
+
+function serviceResponse(): CloudCostResponse {
+  return {
+    code: 200,
+    data: {
+      sets: [
+        {
+          cloudCosts: {
+            compute: {
+              listCost: { cost: 20 },
+              netCost: { cost: 16 },
+              properties: { service: "Compute Engine" },
+            },
+            custom: {
+              listCost: { cost: 10 },
+              netCost: { cost: 8 },
+              properties: { service: "Custom Service" },
             },
           },
         },
@@ -56,6 +80,25 @@ describe("fetchExecPulseTotals", () => {
       rollingThirtyDay: { list: 3000, net: 2700 },
       wow: { list: 100, net: 20 },
     });
+  });
+});
+
+describe("fetchUnmappedCount", () => {
+  it("fetches the selected service window and returns bucketize unmappedCount", async () => {
+    const fetcher = vi.fn().mockResolvedValue(serviceResponse());
+
+    const count = await fetchUnmappedCount(
+      new Date("2026-07-24T15:00:00Z"),
+      "2026-06",
+      "invoice",
+      fetcher,
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "2026-06-01T00:00:00Z,2026-07-01T00:00:00Z",
+      "service",
+    );
+    expect(count).toBe(1);
   });
 });
 

@@ -11,7 +11,12 @@ import {
   resolveWindow,
   type ResolvedWindow,
 } from "../transforms/windows";
-import { sumSets } from "../transforms/aggregate";
+import { sumByKey, sumSets } from "../transforms/aggregate";
+import {
+  bucketizeServices,
+  loadCategoryMap,
+  type CategoryMap,
+} from "../transforms/bucketize";
 
 type FetchCloudCost = (
   window: string,
@@ -45,6 +50,7 @@ export type InformData = {
   statusError: string | null;
   statusLoading: boolean;
   statusRow: CloudCostStatusRow | null;
+  unmappedCount: number;
 };
 
 type UseInformDataOptions = {
@@ -96,12 +102,30 @@ export async function fetchExecPulseTotals(
   };
 }
 
+export async function fetchUnmappedCount(
+  now: Date,
+  invoiceMonth: string,
+  preset: WindowPreset,
+  fetcher: FetchCloudCost = fetchCloudCost,
+  categoryMap: CategoryMap = loadCategoryMap(),
+): Promise<number> {
+  const activeWindow = resolveWindow(preset, now, invoiceMonth);
+  const response = await fetcher(activeWindow.window, "service");
+  const byService = sumByKey(
+    response.data.sets,
+    (name, item) => item.properties?.service ?? name,
+  );
+
+  return bucketizeServices(byService, categoryMap).unmappedCount;
+}
+
 export function useInformData({
   invoiceMonth,
   now,
   preset,
 }: UseInformDataOptions): InformData {
   const resolvedNow = useMemo(() => now ?? new Date(), [invoiceMonth, now]);
+  const categoryMap = useMemo(() => loadCategoryMap(), []);
   const [status, setStatus] = useState<CloudCostStatusResponse | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -109,6 +133,7 @@ export function useInformData({
   const [execPulseError, setExecPulseError] = useState<string | null>(null);
   const [execPulseLoading, setExecPulseLoading] = useState(true);
   const [execPulseRefresh, setExecPulseRefresh] = useState(0);
+  const [unmappedCount, setUnmappedCount] = useState(0);
 
   const retryExecPulse = useCallback(() => {
     setExecPulseRefresh((refresh) => refresh + 1);
@@ -172,6 +197,26 @@ export function useInformData({
     };
   }, [execPulseRefresh, invoiceMonth, resolvedNow]);
 
+  useEffect(() => {
+    let active = true;
+
+    fetchUnmappedCount(resolvedNow, invoiceMonth, preset, fetchCloudCost, categoryMap)
+      .then((count) => {
+        if (active) {
+          setUnmappedCount(count);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setUnmappedCount(0);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [categoryMap, invoiceMonth, preset, resolvedNow]);
+
   const statusRow = status?.data[0] ?? null;
 
   return {
@@ -188,5 +233,6 @@ export function useInformData({
     statusError,
     statusLoading,
     statusRow,
+    unmappedCount,
   };
 }
