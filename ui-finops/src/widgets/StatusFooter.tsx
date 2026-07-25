@@ -38,6 +38,12 @@ export function StatusFooter({
         <span className="footer-label">Next run</span>
         <strong>{statusRow?.nextRun ?? "Unavailable"}</strong>
       </div>
+      {statusRow?.coverage !== undefined ? (
+        <div>
+          <span className="footer-label">Coverage</span>
+          <strong>{statusRow.coverage}</strong>
+        </div>
+      ) : null}
       <div>
         <span className="footer-label">Unmapped services</span>
         <strong>{unmappedCount}</strong>

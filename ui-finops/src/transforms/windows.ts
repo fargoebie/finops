@@ -59,10 +59,10 @@ export function priorWindow(
       const currentStart = utcMonthStart(now.getUTCFullYear(), now.getUTCMonth());
       const currentEnd = addUtcDays(startOfUtcDay(now), 1);
       const elapsedDays = daysBetween(currentStart, currentEnd);
-      const previousStart = utcMonthStart(now.getUTCFullYear(), now.getUTCMonth() - 1);
+      const priorStart = addUtcDays(currentStart, -elapsedDays);
       return {
-        window: range(previousStart, addUtcDays(previousStart, elapsedDays)),
-        label: "Prior month to date",
+        window: range(priorStart, currentStart),
+        label: "Prior equal period",
       };
     }
     case "invoice": {

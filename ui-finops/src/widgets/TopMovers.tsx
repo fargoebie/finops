@@ -119,10 +119,14 @@ function MoversTable({
           <thead>
             <tr>
               <th scope="col">Service</th>
-              <th scope="col">Current</th>
-              <th scope="col">Prior</th>
-              <th scope="col">Delta</th>
-              <th scope="col">Pct</th>
+              <th scope="col">List current</th>
+              <th scope="col">Net current</th>
+              <th scope="col">List prior</th>
+              <th scope="col">Net prior</th>
+              <th scope="col">List delta</th>
+              <th scope="col">Net delta</th>
+              <th scope="col">List pct</th>
+              <th scope="col">Net pct</th>
             </tr>
           </thead>
           <tbody>
@@ -130,9 +134,13 @@ function MoversTable({
               <tr key={row.key}>
                 <th scope="row">{row.key}</th>
                 <td>{formatMoney(row.current.list)}</td>
+                <td>{formatMoney(row.current.net)}</td>
                 <td>{formatMoney(row.prior.list)}</td>
+                <td>{formatMoney(row.prior.net)}</td>
                 <td>{formatSignedMoney(row.deltaList)}</td>
+                <td>{formatSignedMoney(row.deltaNet)}</td>
                 <td>{formatPercent(row.pctList)}</td>
+                <td>{formatPercent(row.pctNet)}</td>
               </tr>
             ))}
           </tbody>

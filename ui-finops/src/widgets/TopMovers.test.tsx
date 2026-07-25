@@ -91,7 +91,7 @@ describe("fetchTopMoversViewModel", () => {
 });
 
 describe("TopMoversContent", () => {
-  it("renders riser and faller tables with current, prior, delta, and percentage", () => {
+  it("renders riser and faller tables with list and net current, prior, delta, and percentage", () => {
     const data: TopMoversViewModel = {
       currentWindowLabel: "June 2026",
       fallers: [
@@ -131,12 +131,24 @@ describe("TopMoversContent", () => {
     expect(html).toContain("Top movers");
     expect(html).toContain("Risers");
     expect(html).toContain("Fallers");
+    expect(html).toContain("List current");
+    expect(html).toContain("Net current");
+    expect(html).toContain("List prior");
+    expect(html).toContain("Net prior");
+    expect(html).toContain("List delta");
+    expect(html).toContain("Net delta");
+    expect(html).toContain("List pct");
+    expect(html).toContain("Net pct");
     expect(html).toContain("Places API");
     expect(html).toContain("Compute Engine");
     expect(html).toContain("$150.00");
+    expect(html).toContain("$120.00");
     expect(html).toContain("$100.00");
+    expect(html).toContain("$80.00");
     expect(html).toContain("+$50.00");
+    expect(html).toContain("+$40.00");
     expect(html).toContain("-$75.00");
+    expect(html).toContain("-$60.00");
     expect(html).toContain("+50.0%");
     expect(html).toContain("-75.0%");
   });

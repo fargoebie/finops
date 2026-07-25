@@ -16,6 +16,7 @@ describe("StatusFooter", () => {
         }}
         statusRow={{
           connectionStatus: "Connection Successful",
+          coverage: "97%",
           lastRun: "2026-07-24T00:00:00Z",
           nextRun: "2026-07-25T00:00:00Z",
         }}
@@ -28,6 +29,8 @@ describe("StatusFooter", () => {
     expect(html).toContain("May 2026");
     expect(html).toContain("2026-07-24T00:00:00Z");
     expect(html).toContain("2026-07-25T00:00:00Z");
+    expect(html).toContain("Coverage");
+    expect(html).toContain("97%");
     expect(html).toContain("Unmapped services");
     expect(html).toContain(">2</strong>");
   });

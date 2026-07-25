@@ -34,4 +34,10 @@ describe("priorWindow", () => {
       "2026-05-01T00:00:00Z,2026-06-01T00:00:00Z",
     );
   });
+
+  it("prior mtd is the immediately preceding equal-length period", () => {
+    expect(priorWindow("mtd", now).window).toBe(
+      "2026-06-07T00:00:00Z,2026-07-01T00:00:00Z",
+    );
+  });
 });
