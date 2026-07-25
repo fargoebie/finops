@@ -74,7 +74,7 @@ docs/finops/README.md            (point at ui-finops config)
 **Interfaces:**
 - Produces: npm scripts `dev`, `build`, `test`; category JSON importable as `../config/gcp-category-map.json`
 
-- [ ] **Step 1: Create package.json**
+- [x] **Step 1: Create package.json**
 
 ```json
 {
@@ -105,7 +105,7 @@ docs/finops/README.md            (point at ui-finops config)
 }
 ```
 
-- [ ] **Step 2: Add Vite + TS config**
+- [x] **Step 2: Add Vite + TS config**
 
 `ui-finops/vite.config.ts`:
 
@@ -127,7 +127,7 @@ export default defineConfig({
 `ui-finops/index.html` — root div `#root`, script `/src/main.tsx`.  
 `ui-finops/src/main.tsx` — `createRoot` render `<App />` placeholder “GCP FinOps”.
 
-- [ ] **Step 3: Copy category map**
+- [x] **Step 3: Copy category map**
 
 ```bash
 cp docs/finops/gcp-category-map.json ui-finops/config/gcp-category-map.json
@@ -135,7 +135,7 @@ cp docs/finops/gcp-category-map.json ui-finops/config/gcp-category-map.json
 
 Update `docs/finops/README.md` to state **source of truth is `ui-finops/config/gcp-category-map.json`**.
 
-- [ ] **Step 4: Install and verify**
+- [x] **Step 4: Install and verify**
 
 ```bash
 cd ui-finops && npm install && npm test -- --passWithNoTests && npm run build
@@ -143,7 +143,7 @@ cd ui-finops && npm install && npm test -- --passWithNoTests && npm run build
 
 Expected: install OK; tests pass (none yet); build emits `dist/`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ui-finops docs/finops/README.md
@@ -161,7 +161,7 @@ git commit -s -m "chore(ui-finops): scaffold Vite React app and category map"
 **Interfaces:**
 - Produces: `Money`, `CloudCostItem`, `CloudCostSet`, `CloudCostResponse`, `WindowPreset`, `ServiceCost`, `BucketCost`, `MoverRow`
 
-- [ ] **Step 1: Write types**
+- [x] **Step 1: Write types**
 
 ```ts
 // ui-finops/src/types/viewModels.ts
@@ -243,7 +243,7 @@ export type ViewGraphResponse = {
 };
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add ui-finops/src/types
@@ -264,7 +264,7 @@ git commit -s -m "feat(ui-finops): add cloud cost and view-model types"
   - `priorWindow(preset: WindowPreset, now: Date, invoiceMonth?: string): { window: string; label: string }`
   - `invoiceMonth` format `YYYY-MM`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -306,7 +306,7 @@ describe("priorWindow", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 ```bash
 cd ui-finops && npm test -- src/transforms/windows.test.ts
@@ -314,20 +314,20 @@ cd ui-finops && npm test -- src/transforms/windows.test.ts
 
 Expected: FAIL cannot find module / resolveWindow not defined.
 
-- [ ] **Step 3: Implement `windows.ts`**
+- [x] **Step 3: Implement `windows.ts`**
 
 Implement using UTC `Date.UTC` / `toISOString().replace(/\.\d{3}Z$/, "Z")`.  
 For rolling `7d`/`30d` **current**: pass through `"7d"` / `"30d"`.  
 For rolling **prior**: compute absolute ranges ending at start of current rolling window (today 00:00 UTC minus N days → today 00:00 UTC for current implied range; prior ends where current starts).  
 Document the assumed current-range start in comments to match tests.
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 ```bash
 cd ui-finops && npm test -- src/transforms/windows.test.ts
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ui-finops/src/transforms/windows.ts ui-finops/src/transforms/windows.test.ts
@@ -348,7 +348,7 @@ git commit -s -m "feat(ui-finops): window presets and prior-period helpers"
   - `sumSets(sets: CloudCostSet[]): Money`
   - `sumByKey(sets: CloudCostSet[], keyFn: (name: string, item: CloudCostItem) => string): Map<string, Money>`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -384,14 +384,14 @@ describe("sumByKey", () => {
 });
 ```
 
-- [ ] **Step 2: Run — expect FAIL**  
+- [x] **Step 2: Run — expect FAIL**  
 `npm test -- src/transforms/aggregate.test.ts`
 
-- [ ] **Step 3: Implement** — treat missing `listCost`/`netCost` as `0`.
+- [x] **Step 3: Implement** — treat missing `listCost`/`netCost` as `0`.
 
-- [ ] **Step 4: Run — expect PASS**
+- [x] **Step 4: Run — expect PASS**
 
-- [ ] **Step 5: Commit** — `feat(ui-finops): aggregate list+net across cloudCost sets`
+- [x] **Step 5: Commit** — `feat(ui-finops): aggregate list+net across cloudCost sets`
 
 ---
 
@@ -410,15 +410,15 @@ describe("sumByKey", () => {
   - `bucketizeServices(byService: Map<string, Money>, map: CategoryMap): { buckets: BucketCost[]; services: ServiceCost[]; unmappedCount: number }`
   - `gmpSubMix(services: ServiceCost[], map: CategoryMap): BucketCost[]` (only GMP services, keyed by sub-bucket)
 
-- [ ] **Step 1: Failing tests** covering Places→`gmp`+places, Invoice→`billing`, `Claude Fable 5`→`ai_ml` via pattern, `Totally Unknown`→`other` + unmappedCount, GMP sub-mix sums Places vs Geocoding.
+- [x] **Step 1: Failing tests** covering Places→`gmp`+places, Invoice→`billing`, `Claude Fable 5`→`ai_ml` via pattern, `Totally Unknown`→`other` + unmappedCount, GMP sub-mix sums Places vs Geocoding.
 
-- [ ] **Step 2: Run — FAIL**
+- [x] **Step 2: Run — FAIL**
 
-- [ ] **Step 3: Implement** — exact `serviceToBucket` first, then `serviceNamePatterns` regex, else `defaults.unmappedBucket`. GMP sub from `gmpSubBuckets[].services` membership.
+- [x] **Step 3: Implement** — exact `serviceToBucket` first, then `serviceNamePatterns` regex, else `defaults.unmappedBucket`. GMP sub from `gmpSubBuckets[].services` membership.
 
-- [ ] **Step 4: Run — PASS**
+- [x] **Step 4: Run — PASS**
 
-- [ ] **Step 5: Commit** — `feat(ui-finops): expanded category bucketize with GMP sub-mix`
+- [x] **Step 5: Commit** — `feat(ui-finops): expanded category bucketize with GMP sub-mix`
 
 ---
 
@@ -432,9 +432,9 @@ describe("sumByKey", () => {
   - `periodCompare(current: Map<string, Money>, prior: Map<string, Money>): MoverRow[]` sorted by `|deltaList|` desc
   - `discountRows(byService: Map<string, Money>, highlightPct: number): Array<ServiceCost & { delta: number; pct: number | null }>` where `delta = list - net`, `pct = list === 0 ? null : (delta/list)*100`, filter/sort by `|delta|`
 
-- [ ] **Step 1–4:** TDD both modules (include divide-by-zero → `pct: null`; prior missing key → prior zeros).
+- [x] **Step 1–4:** TDD both modules (include divide-by-zero → `pct: null`; prior missing key → prior zeros).
 
-- [ ] **Step 5: Commit** — `feat(ui-finops): period compare and net-vs-list discount rows`
+- [x] **Step 5: Commit** — `feat(ui-finops): period compare and net-vs-list discount rows`
 
 ---
 
@@ -451,11 +451,11 @@ describe("sumByKey", () => {
   - `fetchCloudCost(window: string, aggregate: string): Promise<CloudCostResponse>`
   - `fetchViewGraph(window: string, aggregate: string): Promise<ViewGraphResponse>`
 
-- [ ] **Step 1: Failing test** — mock fetch, assert URL `/model/cloudCost?window=7d&aggregate=service` and JSON parse.
+- [x] **Step 1: Failing test** — mock fetch, assert URL `/model/cloudCost?window=7d&aggregate=service` and JSON parse.
 
-- [ ] **Step 2: Implement** with `URLSearchParams`; throw on non-OK HTTP or `code >= 400`.
+- [x] **Step 2: Implement** with `URLSearchParams`; throw on non-OK HTTP or `code >= 400`.
 
-- [ ] **Step 3: Commit** — `feat(ui-finops): cloudCost API client`
+- [x] **Step 3: Commit** — `feat(ui-finops): cloudCost API client`
 
 ---
 
@@ -468,15 +468,15 @@ describe("sumByKey", () => {
 **Interfaces:**
 - Produces: React state `preset`, `invoiceMonth` (`YYYY-MM`, default previous calendar month), `status`, parallel data loading hooks later widgets use via props or a thin `useInformData` hook in `src/hooks/useInformData.ts`
 
-- [ ] **Step 1: Add `formatMoney(n: number): string`** using `Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })` for large demogcp magnitudes (optional `maximumFractionDigits: 2` under $1000).
+- [x] **Step 1: Add `formatMoney(n: number): string`** using `Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })` for large demogcp magnitudes (optional `maximumFractionDigits: 2` under $1000).
 
-- [ ] **Step 2: Implement `App` header** with buttons `7d | 30d | MTD | Invoice` + `<input type="month">` visible when invoice selected.
+- [x] **Step 2: Implement `App` header** with buttons `7d | 30d | MTD | Invoice` + `<input type="month">` visible when invoice selected.
 
-- [ ] **Step 3: On mount, `fetchStatus`**. If first row `connectionStatus !== "Connection Successful"`, render full-page status panel only (show raw status JSON fields). Else render section placeholders 1–6 + `StatusFooter`.
+- [x] **Step 3: On mount, `fetchStatus`**. If first row `connectionStatus !== "Connection Successful"`, render full-page status panel only (show raw status JSON fields). Else render section placeholders 1–6 + `StatusFooter`.
 
-- [ ] **Step 4: Manual** — `npm run dev`; with API down, status panel; with proxy to live, chrome renders.
+- [x] **Step 4: Manual** — `npm run dev`; with API down, status panel; with proxy to live, chrome renders.
 
-- [ ] **Step 5: Commit** — `feat(ui-finops): app shell with window presets and status gate`
+- [x] **Step 5: Commit** — `feat(ui-finops): app shell with window presets and status gate`
 
 ---
 
@@ -490,13 +490,13 @@ describe("sumByKey", () => {
 - Consumes: `sumSets`, `resolveWindow`, `priorWindow`, `fetchCloudCost`
 - Props: `{ now: Date; invoiceMonth: string }` or data from hook
 
-- [ ] **Step 1: Hook fetches** `aggregate=provider` (or `service` summed) for windows: mtd, 7d, 30d, prior 7d.
+- [x] **Step 1: Hook fetches** `aggregate=provider` (or `service` summed) for windows: mtd, 7d, 30d, prior 7d.
 
-- [ ] **Step 2: Render 4 tiles** — MTD list+net, 7d list+net, 30d list+net, WoW Δ% list and net: `((cur-prior)/prior)*100` or `—` if prior list/net is 0.
+- [x] **Step 2: Render 4 tiles** — MTD list+net, 7d list+net, 30d list+net, WoW Δ% list and net: `((cur-prior)/prior)*100` or `—` if prior list/net is 0.
 
-- [ ] **Step 3: Section error boundary** — if fetch fails, show “Failed to load exec pulse” + Retry button.
+- [x] **Step 3: Section error boundary** — if fetch fails, show “Failed to load exec pulse” + Retry button.
 
-- [ ] **Step 4: Commit** — `feat(ui-finops): ExecPulse list+net KPIs and WoW delta`
+- [x] **Step 4: Commit** — `feat(ui-finops): ExecPulse list+net KPIs and WoW delta`
 
 ---
 
@@ -508,13 +508,13 @@ describe("sumByKey", () => {
 **Interfaces:**
 - Consumes: `sumByKey`, `bucketizeServices`, `gmpSubMix`, `fetchCloudCost` for active preset window
 
-- [ ] **Step 1: Fetch** `aggregate=service` for active window; bucketize.
+- [x] **Step 1: Fetch** `aggregate=service` for active window; bucketize.
 
-- [ ] **Step 2: Recharts** `PieChart` (or stacked bar) of bucket **list** costs; legend/tooltip includes net; KPI text `GMP list % of total list`.
+- [x] **Step 2: Recharts** `PieChart` (or stacked bar) of bucket **list** costs; legend/tooltip includes net; KPI text `GMP list % of total list`.
 
-- [ ] **Step 3: GMP drill panel** — `gmpSubMix` bars for Places / Geocoding / etc. with list+net.
+- [x] **Step 3: GMP drill panel** — `gmpSubMix` bars for Places / Geocoding / etc. with list+net.
 
-- [ ] **Step 4: Commit** — `feat(ui-finops): expanded category mix with GMP drill`
+- [x] **Step 4: Commit** — `feat(ui-finops): expanded category mix with GMP drill`
 
 ---
 
@@ -526,11 +526,11 @@ describe("sumByKey", () => {
 **Interfaces:**
 - Consumes: `fetchViewGraph`, `sumByKey`+`fetchCloudCost` for top-N table with list+net (not `view/table` alone)
 
-- [ ] **Step 1: Line chart** from `view/graph` (values = list-oriented series); tooltip note that table has net.
+- [x] **Step 1: Line chart** from `view/graph` (values = list-oriented series); tooltip note that table has net.
 
-- [ ] **Step 2: Top-15 table** columns: service, list, net, bucket label; sort by list desc; optional “GMP only” filter checkbox.
+- [x] **Step 2: Top-15 table** columns: service, list, net, bucket label; sort by list desc; optional “GMP only” filter checkbox.
 
-- [ ] **Step 3: Commit** — `feat(ui-finops): service drivers chart and top-N table`
+- [x] **Step 3: Commit** — `feat(ui-finops): service drivers chart and top-N table`
 
 ---
 
@@ -539,13 +539,13 @@ describe("sumByKey", () => {
 **Files:**
 - Create: `ui-finops/src/widgets/ProjectShowback.tsx`
 
-- [ ] **Step 1: Fetch** `aggregate=accountID`; horizontal bar of top projects by list; show net in tooltip/table.
+- [x] **Step 1: Fetch** `aggregate=accountID`; horizontal bar of top projects by list; show net in tooltip/table.
 
-- [ ] **Step 2: Click project** → client filter of `aggregate=accountID,service` response (second fetch) for that project’s services.
+- [x] **Step 2: Click project** → client filter of `aggregate=accountID,service` response (second fetch) for that project’s services.
 
-- [ ] **Step 3: Put `__unallocated__` last.** Footnote if billing bucket present in overall mix.
+- [x] **Step 3: Put `__unallocated__` last.** Footnote if billing bucket present in overall mix.
 
-- [ ] **Step 4: Commit** — `feat(ui-finops): project showback by accountID`
+- [x] **Step 4: Commit** — `feat(ui-finops): project showback by accountID`
 
 ---
 
@@ -554,13 +554,13 @@ describe("sumByKey", () => {
 **Files:**
 - Create: `ui-finops/src/widgets/CreditsNetVsList.tsx`, `ui-finops/src/widgets/TopMovers.tsx`
 
-- [ ] **Step 1: Credits** — `discountRows` on active window service map; highlight `pct >= 5`; columns service, list, net, delta, pct.
+- [x] **Step 1: Credits** — `discountRows` on active window service map; highlight `pct >= 5`; columns service, list, net, delta, pct.
 
-- [ ] **Step 2: Top movers** — fetch current + `priorWindow` service maps; `periodCompare`; show top 10 risers and top 10 fallers by `deltaList`.
+- [x] **Step 2: Top movers** — fetch current + `priorWindow` service maps; `periodCompare`; show top 10 risers and top 10 fallers by `deltaList`.
 
-- [ ] **Step 3: Wire StatusFooter** — status fields + `unmappedCount` from bucketize.
+- [x] **Step 3: Wire StatusFooter** — status fields + `unmappedCount` from bucketize.
 
-- [ ] **Step 4: Commit** — `feat(ui-finops): credits net-vs-list and top movers`
+- [x] **Step 4: Commit** — `feat(ui-finops): credits net-vs-list and top movers`
 
 ---
 
@@ -569,7 +569,7 @@ describe("sumByKey", () => {
 **Files:**
 - Create: `ui-finops/nginx.conf`, `ui-finops/Dockerfile`
 
-- [ ] **Step 1: nginx.conf**
+- [x] **Step 1: nginx.conf**
 
 ```nginx
 server {
@@ -598,9 +598,9 @@ server {
 }
 ```
 
-- [ ] **Step 2: Multi-stage Dockerfile** — `node:22-alpine` build `npm ci && npm run build`; `nginx:1.27-alpine` copy `dist/` + `nginx.conf`; `EXPOSE 9090`.
+- [x] **Step 2: Multi-stage Dockerfile** — `node:22-alpine` build `npm ci && npm run build`; `nginx:1.27-alpine` copy `dist/` + `nginx.conf`; `EXPOSE 9090`.
 
-- [ ] **Step 3: Local image smoke**
+- [x] **Step 3: Local image smoke**
 
 ```bash
 cd ui-finops && docker build -t ui-finops:local .
@@ -610,7 +610,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9090/healthz
 
 Expected: `200`
 
-- [ ] **Step 4: Commit** — `feat(ui-finops): nginx proxy and container image`
+- [x] **Step 4: Commit** — `feat(ui-finops): nginx proxy and container image`
 
 ---
 
@@ -626,7 +626,7 @@ Expected: `200`
 - `UI_IMAGE` still `${AR}/opencost-ui:${IMAGE_TAG}` (name stable)
 - `cmd_push_image` builds from `${ROOT_DIR}/ui-finops`
 
-- [ ] **Step 1: Update deploy.sh `cmd_push_image`**
+- [x] **Step 1: Update deploy.sh `cmd_push_image`**
 
 ```bash
   docker build --platform "${PLATFORM}" -t "${UI_IMAGE}" "${ROOT_DIR}/ui-finops"
@@ -636,9 +636,9 @@ Expected: `200`
 
 Remove `SOURCE_UI_IMAGE` pull/tag for UI (keep API pull from ghcr or existing SOURCE_IMAGE flow).
 
-- [ ] **Step 2: Simplify ingress container env in `cloud_run.tf`** to none required (or `NGINX` defaults only). Keep `depends_on = ["opencost"]` and probes.
+- [x] **Step 2: Simplify ingress container env in `cloud_run.tf`** to none required (or `NGINX` defaults only). Keep `depends_on = ["opencost"]` and probes.
 
-- [ ] **Step 3: Auth + deploy**
+- [x] **Step 3: Auth + deploy**
 
 ```bash
 ./infra/scripts/auth-from-secret.sh
@@ -646,7 +646,7 @@ Remove `SOURCE_UI_IMAGE` pull/tag for UI (keep API pull from ghcr or existing SO
 ./infra/scripts/deploy.sh deploy-revision
 ```
 
-- [ ] **Step 4: Smoke**
+- [x] **Step 4: Smoke**
 
 ```bash
 BASE=https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app
@@ -656,7 +656,7 @@ curl -sS "$BASE/model/cloudCost/status" | jq '.data[0].connectionStatus'
 
 Expected: `200` and `Connection Successful`. Browser: six sections, no OpenCost nav.
 
-- [ ] **Step 5: Commit** — `feat(infra): deploy ui-finops as Cloud Run ingress`
+- [x] **Step 5: Commit** — `feat(infra): deploy ui-finops as Cloud Run ingress`
 
 ---
 
@@ -667,9 +667,9 @@ Expected: `200` and `Connection Successful`. Browser: six sections, no OpenCost 
 - Modify: `docs/superpowers/plans/2026-07-24-gcp-finops-dashboard-mvp.md` — add banner pointing to this plan
 - Modify: `docs/NEXT_AGENT_RUN.md` — FinOps SPA is home
 
-- [ ] **Step 1: Update docs** as above  
-- [ ] **Step 2: Commit** — `docs: point handoff at GCP FinOps SPA home`  
-- [ ] **Step 3: Push branch / update PR**
+- [x] **Step 1: Update docs** as above  
+- [x] **Step 2: Commit** — `docs: point handoff at GCP FinOps SPA home`  
+- [x] **Step 3: Push branch / update PR**
 
 ---
 

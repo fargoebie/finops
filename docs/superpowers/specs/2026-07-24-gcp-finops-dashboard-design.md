@@ -1,6 +1,6 @@
 # GCP FinOps Dashboard — Design Spec
 
-**Status:** Approved — implementation plan ready  
+**Status:** Approved / Implemented-in-progress  
 **Date:** 2026-07-24  
 **Branch context:** Pure GCP Inform dashboard replacing stock OpenCost UI on Cloud Run  
 **Related:** `docs/finops/gcp-category-map.json`, implementation plan [`docs/superpowers/plans/2026-07-25-gcp-finops-dashboard.md`](../plans/2026-07-25-gcp-finops-dashboard.md)
