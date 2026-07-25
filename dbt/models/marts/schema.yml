@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: fct_spend_waterfall
+    description: "Monthly spend waterfall per project/service/sku: list→contracted→effective→billed."
+    columns:
+      - name: project_id
+        tests: [not_null]
+      - name: charge_month
+        tests: [not_null]
+      - name: billed_cost
+        tests: [not_null]
+
+  - name: fct_credit_breakdown
+    description: "Credits by type/project/service/month. credit_amount is negative."
+    columns:
+      - name: project_id
+        tests: [not_null]
+      - name: credit_type
+        tests: [not_null]
+      - name: total_credit_amount
+        tests: [not_null]
+
+  - name: fct_commitment_discounts
+    description: "CUD utilisation and coverage by commitment/project/month."
+    columns:
+      - name: commitment_discount_id
+        tests: [not_null]
+
+  - name: fct_monthly_showback
+    description: "Project-level monthly showback with credit attribution waterfall."
+    columns:
+      - name: project_id
+        tests: [not_null]
+      - name: charge_month
+        tests: [not_null]
+      - name: net_cost
+        tests: [not_null]
