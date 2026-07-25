@@ -1,5 +1,0 @@
-{
-  "awsSpotDataBucket": "mybucket",
-  "awsSpotDataPrefix": "myprefix",
-  "awsSpotDataRegion": "us-east-1"
-}
