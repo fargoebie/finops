@@ -3,6 +3,7 @@ import { useState } from "react";
 import { formatMoney } from "./format/money";
 import { useInformData } from "./hooks/useInformData";
 import type { WindowPreset } from "./types/viewModels";
+import { CategoryMix } from "./widgets/CategoryMix";
 import { ExecPulse } from "./widgets/ExecPulse";
 import { StatusFooter } from "./widgets/StatusFooter";
 
@@ -14,13 +15,17 @@ const presets: Array<{ label: string; value: WindowPreset }> = [
 ];
 
 const sections = [
-  "1. Executive snapshot",
-  "2. Spend over time",
-  "3. Service mix",
-  "4. Platform buckets",
-  "5. Biggest movers",
-  "6. Operator notes",
+  "3. Service drivers",
+  "4. Project showback",
+  "5. Credits & net vs list",
+  "6. Top movers",
 ] as const;
+
+type AppProps = {
+  initialInvoiceMonth?: string;
+  initialPreset?: WindowPreset;
+  now?: Date;
+};
 
 export function previousCalendarMonth(now = new Date()): string {
   const previous = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
@@ -29,10 +34,17 @@ export function previousCalendarMonth(now = new Date()): string {
   return `${year}-${month}`;
 }
 
-export default function App() {
-  const [preset, setPreset] = useState<WindowPreset>("7d");
-  const [invoiceMonth, setInvoiceMonth] = useState(previousCalendarMonth);
-  const informData = useInformData({ invoiceMonth, preset });
+export default function App({
+  initialInvoiceMonth,
+  initialPreset = "7d",
+  now,
+}: AppProps = {}) {
+  const [appNow] = useState(() => now ?? new Date());
+  const [preset, setPreset] = useState<WindowPreset>(initialPreset);
+  const [invoiceMonth, setInvoiceMonth] = useState(
+    () => initialInvoiceMonth ?? previousCalendarMonth(appNow),
+  );
+  const informData = useInformData({ invoiceMonth, now: appNow, preset });
 
   if (informData.connectionStatus !== "Connection Successful") {
     return (
@@ -118,7 +130,8 @@ export default function App() {
           loading={informData.execPulse.loading}
           onRetry={informData.execPulse.retry}
         />
-        {sections.slice(1).map((title) => (
+        <CategoryMix invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
+        {sections.map((title) => (
           <section className="placeholder-card" key={title}>
             <p className="eyebrow">Placeholder</p>
             <h2>{title}</h2>

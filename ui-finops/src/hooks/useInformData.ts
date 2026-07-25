@@ -49,6 +49,7 @@ export type InformData = {
 
 type UseInformDataOptions = {
   invoiceMonth: string;
+  now?: Date;
   preset: WindowPreset;
 };
 
@@ -97,9 +98,10 @@ export async function fetchExecPulseTotals(
 
 export function useInformData({
   invoiceMonth,
+  now,
   preset,
 }: UseInformDataOptions): InformData {
-  const now = useMemo(() => new Date(), [invoiceMonth]);
+  const resolvedNow = useMemo(() => now ?? new Date(), [invoiceMonth, now]);
   const [status, setStatus] = useState<CloudCostStatusResponse | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -147,7 +149,7 @@ export function useInformData({
     setExecPulseLoading(true);
     setExecPulseError(null);
 
-    fetchExecPulseTotals(now, invoiceMonth)
+    fetchExecPulseTotals(resolvedNow, invoiceMonth)
       .then((data) => {
         if (active) {
           setExecPulseData(data);
@@ -168,20 +170,20 @@ export function useInformData({
     return () => {
       active = false;
     };
-  }, [execPulseRefresh, invoiceMonth, now]);
+  }, [execPulseRefresh, invoiceMonth, resolvedNow]);
 
   const statusRow = status?.data[0] ?? null;
 
   return {
     connectionStatus: statusRow?.connectionStatus,
-    currentWindow: resolveWindow(preset, now, invoiceMonth),
+    currentWindow: resolveWindow(preset, resolvedNow, invoiceMonth),
     execPulse: {
       data: execPulseData,
       error: execPulseError,
       loading: execPulseLoading,
       retry: retryExecPulse,
     },
-    priorWindow: priorWindow(preset, now, invoiceMonth),
+    priorWindow: priorWindow(preset, resolvedNow, invoiceMonth),
     status,
     statusError,
     statusLoading,
