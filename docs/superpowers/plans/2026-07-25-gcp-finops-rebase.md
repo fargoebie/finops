@@ -1580,4 +1580,266 @@ git commit -m "docs: update AGENTS.md and add Metabase BigQuery setup guide"
 | Docker Compose: Metabase + PostgreSQL, port 127.0.0.1:3000 | Task 8 |
 | nginx: HTTP→HTTPS redirect, TLS proxy | Task 8 |
 | AGENTS.md update | Task 9 |
+| Verify actual GCP FOCUS BQ schema before rewriting dbt models | Task 10 |
+| Rewrite dbt staging + intermediate + mart SQL to actual FOCUS schema | Task 10 |
+| Wire DBT_BILLING_PROJECT_ID / DBT_BILLING_DATASET / DBT_FOCUS_TABLE on VM | Task 11 |
+| Add generate_schema_name macro to prevent dataset name doubling | Task 11 |
+
+---
+
+## Task 10: Verify BQ FOCUS Schema and Rewrite dbt Models
+
+**Context:** Opus 5 code review found that the dbt models (Tasks 5–7) were written against an assumed snake_case FOCUS schema. GCP's actual FOCUS BigQuery export uses PascalCase columns (`ChargeCategory`, `BilledCost`, `SubAccountId`, …) and stores credits in a **repeated record** `x_Credits{Type, Name, Amount}`, not a flat `charge_subcategory` column. Credit type values are also GCP tokens (`COMMITTED_USAGE_DISCOUNT`, `PROMOTION`, `SUSTAINED_USAGE_DISCOUNT`) not human-readable strings.
+
+**Files:**
+- Read: actual BQ schema via `bq show --schema`
+- Modify: `dbt/models/staging/stg_focus_billing.sql`
+- Modify: `dbt/models/staging/sources.yml`
+- Modify: `dbt/models/staging/schema.yml`
+- Modify: `dbt/models/intermediate/int_charges.sql`
+- Modify: `dbt/models/intermediate/int_credits.sql`
+- Modify: `dbt/models/marts/fct_spend_waterfall.sql`
+- Modify: `dbt/models/marts/fct_credit_breakdown.sql`
+- Modify: `dbt/models/marts/fct_commitment_discounts.sql`
+- Modify: `dbt/models/marts/fct_monthly_showback.sql`
+- Modify: `dbt/models/marts/schema.yml`
+
+**Interfaces:**
+- Produces: corrected column names/types flowing through staging→intermediate→marts
+- Produces: credit type strings matching GCP's actual token values
+
+- [ ] **Step 1: Dump the actual FOCUS table schema**
+
+```bash
+bq show --schema --format=prettyjson \
+  demogcp-terra2021:export_billing_demogcp_detailed.gcp_billing_export_focus_v1_01E5F4_66804E_8286B7 \
+  > /tmp/focus_schema.json
+cat /tmp/focus_schema.json | python3 -c "
+import json, sys
+schema = json.load(sys.stdin)
+for f in schema:
+    mode = f.get('mode','NULLABLE')
+    if f['type'] == 'RECORD':
+        print(f\"{f['name']} ({f['type']}, {mode})\")
+        for sf in f.get('fields', []):
+            print(f\"  .{sf['name']} ({sf['type']})\")
+    else:
+        print(f\"{f['name']} ({f['type']}, {mode})\")
+"
+```
+
+Expected: list of top-level column names with types. Look specifically for:
+- How `Charge*` columns are named and typed
+- Whether there is an `x_Credits` or `Credits` repeated record and its sub-fields
+- The exact values in `ChargeCategory` or equivalent
+
+- [ ] **Step 2: Identify the correct column mapping**
+
+From the schema dump, fill in this mapping (update as needed):
+
+| Assumed name | Actual GCP FOCUS column | Notes |
+|---|---|---|
+| `charge_type` | `ChargeCategory` | Values: `Usage`, `Purchase`, `Tax`, `Credit`, `Adjustment` |
+| `charge_subcategory` | `x_Credits` repeated record | Must be unnested; `Type` field is the credit token |
+| `sub_account_id` | `SubAccountId` or `ProjectId` | Verify |
+| `service_name` | `ServiceName` | Verify |
+| `billed_cost` | `BilledCost` | Verify |
+| `list_cost` | `ListCost` | Verify — may not be populated by GCP |
+| `contracted_cost` | `ContractedCost` | Verify — may not be populated by GCP |
+| `effective_cost` | `EffectiveCost` | Verify |
+| `commitment_discount_id` | Check schema | May not exist as top-level column |
+
+Also enumerate the actual credit `Type` token values from your data:
+```sql
+SELECT DISTINCT credit.Type
+FROM `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_focus_v1_01E5F4_66804E_8286B7`,
+UNNEST(x_Credits) AS credit
+LIMIT 100
+```
+
+- [ ] **Step 3: Rewrite `stg_focus_billing.sql`**
+
+Use the actual column names from Step 2. Key changes:
+- Replace snake_case column refs with actual PascalCase names
+- Unnest the credits record into a separate staging layer OR handle credits in intermediate
+- Alias to snake_case output names for consistency downstream (column aliasing is fine)
+- Keep `coalesce(BilledCost, 0) as billed_cost` pattern
+
+Verify: `dbt compile --select stg_focus_billing` must exit 0.
+
+- [ ] **Step 4: Rewrite `int_charges.sql` and `int_credits.sql`**
+
+`int_charges.sql`:
+- Change `where charge_type in ('Usage','Purchase','Tax')` to use the actual column name from Step 2 (likely `charge_category` after the staging alias)
+- Keep consuming `ref('stg_focus_billing')`
+
+`int_credits.sql`:
+- Change `where charge_type = 'Credit'` to correct column/value
+- If credits come from an unnested record in staging, adjust the join/source accordingly
+- `credit_type` alias must use actual GCP token values in the data
+
+Verify: `dbt compile --select int_charges int_credits` must exit 0.
+
+- [ ] **Step 5: Rewrite `fct_monthly_showback.sql` credit pivot**
+
+Replace the human-readable string matches with actual GCP token values from Step 2:
+
+```sql
+-- Replace these (wrong — human-readable strings):
+sum(case when credit_type = 'Enterprise Discount Program' ...)
+sum(case when credit_type like 'Committed Use Discount%' ...)
+sum(case when credit_type = 'Sustained Use Discount' ...)
+sum(case when credit_type = 'Promotion' ...)
+sum(case when credit_type = 'Reseller Discount' ...)
+
+-- With actual token values, e.g.:
+sum(case when credit_type = 'COMMITTED_USAGE_DISCOUNT' ...)
+sum(case when credit_type = 'PROMOTION' ...)
+-- etc. — derived from Step 2's token enumeration query
+```
+
+- [ ] **Step 6: Update schema tests**
+
+Update `dbt/models/staging/schema.yml` `accepted_values` for the charge category/type column to use the correct column name and actual values.
+
+- [ ] **Step 7: Run dbt against live table**
+
+```bash
+cd dbt
+# Ensure env vars are set (Task 11 must be done first)
+dbt run --select stg_focus_billing
+dbt run --select int_charges int_credits
+dbt run --select fct_spend_waterfall fct_credit_breakdown fct_commitment_discounts fct_monthly_showback
+dbt test
+```
+
+Expected: all models run clean, all schema tests pass. Verify in BigQuery console that `finops_dbt` dataset has the 4 mart views with rows.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add dbt/
+git commit -m "fix(dbt): rewrite models against actual GCP FOCUS BQ schema"
+```
+
+---
+
+## Task 11: Wire Billing Source Env Vars and Fix Dataset Naming
+
+**Context:** Two issues found in Opus 5 review:
+1. `sources.yml` resolves billing table from env vars (`DBT_BILLING_PROJECT_ID`, `DBT_BILLING_DATASET`, `DBT_FOCUS_TABLE`) but nothing sets them on the VM — cron and `dbt-run` fail with "table not found".
+2. dbt's default `generate_schema_name` macro concatenates `target.schema` + `custom_schema`, so marts land in `dbt_staging_finops_dbt` instead of `finops_dbt`.
+
+**Files:**
+- Create: `dbt/macros/generate_schema_name.sql`
+- Modify: `infra/scripts/deploy.sh` — `cmd_profiles` to also write env vars
+- Modify: `infra/scripts/vm-startup.sh` — cron to source env file
+- Modify: `infra/scripts/env.sh` — add billing source vars
+- Modify: `dbt/profiles.yml.example` — note the required env vars
+
+**Interfaces:**
+- Consumes: `BILLING_PROJECT_ID`, `DBT_BILLING_DATASET`, `DBT_FOCUS_TABLE` from `env.sh`
+- Produces: `/opt/finops/dbt/.env` on VM with all required dbt env vars
+- Produces: dbt models materialising into correct dataset names
+
+- [ ] **Step 1: Add billing source vars to `infra/scripts/env.sh`**
+
+Append after the existing `SECRET_MB_DB_PASS` line:
+
+```bash
+# dbt billing source — set these to match your actual BQ export
+export DBT_BILLING_DATASET="${DBT_BILLING_DATASET:-export_billing_demogcp_detailed}"
+export DBT_FOCUS_TABLE="${DBT_FOCUS_TABLE:-gcp_billing_export_focus_v1_01E5F4_66804E_8286B7}"
+export DBT_OUTPUT_PROJECT_ID="${DBT_OUTPUT_PROJECT_ID:-${PROJECT_ID}}"
+```
+
+Note: `DBT_BILLING_PROJECT_ID` defaults to `BILLING_PROJECT_ID` (already in env.sh).
+
+- [ ] **Step 2: Update `cmd_profiles` in `deploy.sh` to write a `.env` file**
+
+Replace `cmd_profiles` with a version that writes both `profiles.yml` AND `/opt/finops/dbt/.env`:
+
+```bash
+cmd_profiles() {
+  require_auth
+  local project="${PROJECT_ID}"
+  local billing_project="${BILLING_PROJECT_ID}"
+  local billing_dataset="${DBT_BILLING_DATASET}"
+  local focus_table="${DBT_FOCUS_TABLE}"
+  gcloud compute ssh "${VM_NAME}" \
+    --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
+    --command="mkdir -p /opt/finops/dbt
+printf 'finops:\n  target: prod\n  outputs:\n    prod:\n      type: bigquery\n      method: oauth\n      project: ${project}\n      dataset: dbt_staging\n      location: US\n      timeout_seconds: 300\n      threads: 4\n' > /opt/finops/dbt/profiles.yml
+printf 'DBT_PROJECT_ID=${project}\nDBT_BILLING_PROJECT_ID=${billing_project}\nDBT_BILLING_DATASET=${billing_dataset}\nDBT_FOCUS_TABLE=${focus_table}\n' > /opt/finops/dbt/.env
+echo 'profiles.yml and .env written'"
+}
+```
+
+- [ ] **Step 3: Update the dbt cron in `vm-startup.sh` to source the `.env` file**
+
+Change the cron line from:
+```
+0 6 * * * root cd /opt/finops/dbt && /usr/local/bin/dbt run --profiles-dir . >> /var/log/dbt.log 2>&1
+```
+To:
+```
+0 6 * * * root set -a; [ -f /opt/finops/dbt/.env ] && . /opt/finops/dbt/.env; set +a; cd /opt/finops/dbt && /usr/local/bin/dbt run --profiles-dir . >> /var/log/dbt.log 2>&1
+```
+
+- [ ] **Step 4: Create `dbt/macros/generate_schema_name.sql`**
+
+This macro makes dbt use the custom schema name verbatim (not concatenated with target schema):
+
+```sql
+{% macro generate_schema_name(custom_schema_name, node) -%}
+    {%- if custom_schema_name is none -%}
+        {{ target.schema }}
+    {%- else -%}
+        {{ custom_schema_name | trim }}
+    {%- endif -%}
+{%- endmacro %}
+```
+
+Effect: staging → `dbt_staging`, intermediate → `dbt_intermediate`, marts → `finops_dbt` (matching what Metabase and the setup guide expect).
+
+- [ ] **Step 5: Update `dbt/profiles.yml.example` to document the env vars**
+
+Add a comment block above the profile definition:
+
+```yaml
+# Required environment variables (set by deploy.sh profiles command):
+#   DBT_PROJECT_ID          — GCP project for dbt job execution
+#   DBT_BILLING_PROJECT_ID  — GCP project owning the FOCUS billing export dataset
+#   DBT_BILLING_DATASET     — BigQuery dataset containing the FOCUS export table
+#   DBT_FOCUS_TABLE         — FOCUS export table name (gcp_billing_export_focus_v1_*)
+```
+
+- [ ] **Step 6: Verify the fix locally**
+
+```bash
+# Confirm macro produces correct schema names
+cd dbt && dbt compile --profiles-dir . 2>&1 | grep -E "(dbt_staging|dbt_intermediate|finops_dbt)"
+```
+
+Expected: staging targets `dbt_staging`, intermediate targets `dbt_intermediate`, marts target `finops_dbt`.
+
+- [ ] **Step 7: Run `deploy.sh profiles` and verify on VM**
+
+```bash
+./infra/scripts/deploy.sh profiles
+gcloud compute ssh finops-vm --zone=us-central1-a --tunnel-through-iap \
+  --command="cat /opt/finops/dbt/.env && cat /opt/finops/dbt/profiles.yml"
+```
+
+Expected: both files present with correct values.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add dbt/macros/ dbt/profiles.yml.example infra/scripts/env.sh \
+        infra/scripts/deploy.sh infra/scripts/vm-startup.sh
+git commit -m "fix: wire dbt billing source env vars and fix dataset name generation"
+```
+
+**Note:** Task 10 (schema verification and SQL rewrite) must be done alongside or before Task 11 — the env vars in Task 11 are required for `dbt run` in Task 10's Step 7.
 | Architecture compliance (A/B/C/D/E/G/H/I) | Tasks 2–4 |
