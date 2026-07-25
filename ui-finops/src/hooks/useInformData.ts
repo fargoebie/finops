@@ -41,7 +41,15 @@ export type ExecPulseState = {
   retry: () => void;
 };
 
+export type ActiveWindowSummary = {
+  error: string | null;
+  loading: boolean;
+  total: Money | null;
+  unmappedCount: number;
+};
+
 export type InformData = {
+  activeWindow: ActiveWindowSummary;
   connectionStatus: string | undefined;
   currentWindow: ResolvedWindow;
   execPulse: ExecPulseState;
@@ -102,21 +110,25 @@ export async function fetchExecPulseTotals(
   };
 }
 
-export async function fetchUnmappedCount(
+export async function fetchActiveWindowSummary(
   now: Date,
   invoiceMonth: string,
   preset: WindowPreset,
   fetcher: FetchCloudCost = fetchCloudCost,
   categoryMap: CategoryMap = loadCategoryMap(),
-): Promise<number> {
+): Promise<{ total: Money; unmappedCount: number }> {
   const activeWindow = resolveWindow(preset, now, invoiceMonth);
   const response = await fetcher(activeWindow.window, "service");
   const byService = sumByKey(
     response.data.sets,
     (name, item) => item.properties?.service ?? name,
   );
+  const bucketized = bucketizeServices(byService, categoryMap);
 
-  return bucketizeServices(byService, categoryMap).unmappedCount;
+  return {
+    total: sumSets(response.data.sets),
+    unmappedCount: bucketized.unmappedCount,
+  };
 }
 
 export function useInformData({
@@ -134,6 +146,9 @@ export function useInformData({
   const [execPulseLoading, setExecPulseLoading] = useState(true);
   const [execPulseRefresh, setExecPulseRefresh] = useState(0);
   const [unmappedCount, setUnmappedCount] = useState(0);
+  const [activeWindowTotal, setActiveWindowTotal] = useState<Money | null>(null);
+  const [activeWindowLoading, setActiveWindowLoading] = useState(true);
+  const [activeWindowError, setActiveWindowError] = useState<string | null>(null);
 
   const retryExecPulse = useCallback(() => {
     setExecPulseRefresh((refresh) => refresh + 1);
@@ -200,15 +215,34 @@ export function useInformData({
   useEffect(() => {
     let active = true;
 
-    fetchUnmappedCount(resolvedNow, invoiceMonth, preset, fetchCloudCost, categoryMap)
-      .then((count) => {
+    setActiveWindowLoading(true);
+    setActiveWindowError(null);
+
+    fetchActiveWindowSummary(
+      resolvedNow,
+      invoiceMonth,
+      preset,
+      fetchCloudCost,
+      categoryMap,
+    )
+      .then((summary) => {
         if (active) {
-          setUnmappedCount(count);
+          setUnmappedCount(summary.unmappedCount);
+          setActiveWindowTotal(summary.total);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (active) {
           setUnmappedCount(0);
+          setActiveWindowTotal(null);
+          setActiveWindowError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setActiveWindowLoading(false);
         }
       });
 
@@ -220,6 +254,12 @@ export function useInformData({
   const statusRow = status?.data[0] ?? null;
 
   return {
+    activeWindow: {
+      error: activeWindowError,
+      loading: activeWindowLoading,
+      total: activeWindowTotal,
+      unmappedCount,
+    },
     connectionStatus: statusRow?.connectionStatus,
     currentWindow: resolveWindow(preset, resolvedNow, invoiceMonth),
     execPulse: {

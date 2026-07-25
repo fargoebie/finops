@@ -43,16 +43,15 @@ export default function App({
   );
   const informData = useInformData({ invoiceMonth, now: appNow, preset });
 
-  if (informData.connectionStatus !== "Connection Successful") {
+  if (
+    !informData.statusLoading &&
+    informData.connectionStatus !== "Connection Successful"
+  ) {
     return (
       <main className="status-panel-shell">
         <section className="status-panel" aria-live="polite">
           <p className="eyebrow">Cloud cost connection</p>
-          <h1>
-            {informData.statusLoading
-              ? "Checking connection status"
-              : "Cloud cost data is not ready"}
-          </h1>
+          <h1>Cloud cost data is not ready</h1>
           <p>
             OpenCost reports cloud cost data only after the provider connection
             is healthy. The raw status payload is shown below for setup
@@ -69,6 +68,13 @@ export default function App({
     );
   }
 
+  const windowTotal = informData.activeWindow.total;
+  const windowTotalEmpty =
+    !informData.activeWindow.loading &&
+    windowTotal !== null &&
+    windowTotal.list === 0 &&
+    windowTotal.net === 0;
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -76,8 +82,8 @@ export default function App({
           <p className="eyebrow">GCP FinOps</p>
           <h1>OpenCost Inform</h1>
           <p>
-            Focused cloud cost review for the selected window. Detailed data
-            widgets will fill these regions as subsequent tasks land.
+            GCP billing costs for the selected window — list and net side by
+            side, with GMP split out of the category mix.
           </p>
         </div>
         <div className="window-controls" aria-label="Window presets">
@@ -114,11 +120,40 @@ export default function App({
           <code>{informData.currentWindow.window}</code>
         </div>
         <div>
-          <span className="summary-label">Starting total</span>
-          <strong>{formatMoney(0)}</strong>
-          <span>Awaiting data widgets</span>
+          <span className="summary-label">Window total</span>
+          <strong>
+            {informData.statusLoading || informData.activeWindow.loading
+              ? "Loading…"
+              : windowTotal
+                ? `${formatMoney(windowTotal.list)} list`
+                : "—"}
+          </strong>
+          <span>
+            {informData.activeWindow.error
+              ? `Failed to load total: ${informData.activeWindow.error}`
+              : windowTotal
+                ? `${formatMoney(windowTotal.net)} net`
+                : informData.statusLoading
+                  ? "Checking cloud cost connection…"
+                  : "No total yet"}
+          </span>
         </div>
       </section>
+
+      {windowTotalEmpty ? (
+        <section className="status-panel" aria-live="polite">
+          <p className="eyebrow">Ingestion</p>
+          <h2>No cost rows in this window yet</h2>
+          <p>
+            The connection is healthy, but OpenCost has not returned spend for
+            the selected range. Any new Cloud Run revision restarts the API
+            sidecar and clears its in-memory store until the next refresh (or
+            an admin <code>/cloudCost/rebuild</code>). Run{" "}
+            <code>./infra/scripts/deploy.sh rebuild-cloudcost</code> — deploy
+            does this automatically after each revision.
+          </p>
+        </section>
+      ) : null}
 
       <div className="placeholder-grid">
         <ExecPulse
