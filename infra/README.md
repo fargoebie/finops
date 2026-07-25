@@ -69,7 +69,7 @@ export ADMIN_TOKEN_FILE=/secure/admin_token.txt   # recommended
 | `create-deployer-sa.sh` | Create deployer SA + roles + base64 for agent secret |
 | `auth-from-secret.sh` | Decode `GCP_SA_KEY_B64` → `GOOGLE_APPLICATION_CREDENTIALS` |
 | `bootstrap-state-bucket.sh` | `gs://demogcp-terra2021-tofu-state` + versioning |
-| `deploy.sh` | push API image + locally built `ui-finops` AR image, sync secrets, update Cloud Run |
+| `deploy.sh` | push API/`ui-finops` images, sync secrets, update Cloud Run; `rebuild-cloudcost` after API restarts |
 
 ## FinOps SPA (Option B — sidecar)
 
@@ -94,6 +94,22 @@ Smoke after `deploy.sh deploy-revision`:
 BASE=https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app
 curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/"
 curl -sS "$BASE/model/cloudCost/status" | jq '.data[0].connectionStatus'
+curl -sS -G "$BASE/model/cloudCost" -d window=7d -d aggregate=category | jq '.data.sets | length'
+```
+
+### Avoid empty dashboards after deploy
+
+The OpenCost cloud-cost store is **in-memory**. Updating the `opencost` API
+container wipes spend until the next refresh (~6h) or an admin rebuild.
+
+```bash
+# SPA-only (keeps API memory intact) — preferred for ui-finops changes
+DEPLOY_TARGET=ui ./scripts/deploy.sh push-image
+DEPLOY_TARGET=ui ./scripts/deploy.sh deploy-revision
+
+# After an API image change, deploy.sh rebuilds automatically (default).
+# Manual recovery:
+./scripts/deploy.sh rebuild-cloudcost
 ```
 
 ## Intentionally omitted (v1)

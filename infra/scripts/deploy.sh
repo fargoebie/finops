@@ -23,6 +23,11 @@ PLATFORM="${PLATFORM:-linux/amd64}"
 SOURCE_IMAGE="${SOURCE_IMAGE:-ghcr.io/opencost/opencost:latest}"
 CLOUD_INTEGRATION_FILE="${CLOUD_INTEGRATION_FILE:-${SCRIPT_DIR}/../examples/cloud-integration.demogcp-terra2021.json}"
 ADMIN_TOKEN_FILE="${ADMIN_TOKEN_FILE:-}"
+# ui = FinOps SPA only (keeps API in-memory store). api|both restart the sidecar.
+DEPLOY_TARGET="${DEPLOY_TARGET:-both}"
+# After API container updates, rebuild cloud-cost from BigQuery (needs secret access).
+REBUILD_AFTER_API_DEPLOY="${REBUILD_AFTER_API_DEPLOY:-true}"
+REBUILD_WINDOW="${REBUILD_WINDOW:-30d}"
 
 IMAGE="${AR_HOST}/${PROJECT_ID}/${AR_REPO}/opencost:${IMAGE_TAG}"
 UI_IMAGE="${AR_HOST}/${PROJECT_ID}/${AR_REPO}/opencost-ui:${IMAGE_TAG}"
@@ -34,16 +39,20 @@ Usage: $(basename "$0") <command>
 Project: ${PROJECT_ID}  Region: ${REGION}  Service: ${SERVICE}
 
 Commands:
-  push-image       Pull SOURCE_IMAGE, build ui-finops, push to private AR
-  sync-secrets     Upload cloud-integration.json and optional ADMIN_TOKEN
-  deploy-revision  Point Cloud Run containers at IMAGE_TAG
-  all              push-image && sync-secrets && deploy-revision
-  print-env        Show resolved names
+  push-image          Pull SOURCE_IMAGE and/or build ui-finops; push to private AR
+  sync-secrets        Upload cloud-integration.json and optional ADMIN_TOKEN
+  deploy-revision     Point Cloud Run containers at IMAGE_TAG (see DEPLOY_TARGET)
+  rebuild-cloudcost   Admin rebuild of in-memory cloud-cost store from BigQuery
+  all                 push-image && sync-secrets && deploy-revision
+  print-env           Show resolved names
 
 Env overrides:
   PROJECT_ID REGION NAME_PREFIX IMAGE_TAG SOURCE_IMAGE PLATFORM
   CLOUD_INTEGRATION_FILE  (default: infra/examples/cloud-integration.demogcp-terra2021.json)
   ADMIN_TOKEN_FILE
+  DEPLOY_TARGET=ui|api|both   (default: both; prefer ui for SPA-only changes)
+  REBUILD_AFTER_API_DEPLOY    (default: true; runs rebuild-cloudcost after api|both)
+  REBUILD_WINDOW              (default: 30d)
 EOF
 }
 
@@ -80,6 +89,9 @@ SECRET_INTEGRATION=${SECRET_INTEGRATION}
 SECRET_ADMIN=${SECRET_ADMIN}
 STATE_BUCKET=${STATE_BUCKET}
 CLOUD_INTEGRATION_FILE=${CLOUD_INTEGRATION_FILE}
+DEPLOY_TARGET=${DEPLOY_TARGET}
+REBUILD_AFTER_API_DEPLOY=${REBUILD_AFTER_API_DEPLOY}
+REBUILD_WINDOW=${REBUILD_WINDOW}
 EOF
 }
 
@@ -87,14 +99,30 @@ cmd_push_image() {
   require_auth
   gcloud auth configure-docker "${AR_HOST}" --quiet
 
-  docker pull --platform "${PLATFORM}" "${SOURCE_IMAGE}"
-  docker tag "${SOURCE_IMAGE}" "${IMAGE}"
-  docker push "${IMAGE}"
-  echo "Pushed ${IMAGE}"
+  case "${DEPLOY_TARGET}" in
+    ui|api|both) ;;
+    *)
+      echo "DEPLOY_TARGET must be ui, api, or both (got: ${DEPLOY_TARGET})" >&2
+      exit 1
+      ;;
+  esac
 
-  docker build --platform "${PLATFORM}" -t "${UI_IMAGE}" "${ROOT_DIR}/ui-finops"
-  docker push "${UI_IMAGE}"
-  echo "Pushed ${UI_IMAGE}"
+  if [[ "${DEPLOY_TARGET}" == "api" || "${DEPLOY_TARGET}" == "both" ]]; then
+    docker pull --platform "${PLATFORM}" "${SOURCE_IMAGE}"
+    docker tag "${SOURCE_IMAGE}" "${IMAGE}"
+    docker push "${IMAGE}"
+    echo "Pushed ${IMAGE}"
+  else
+    echo "Skipping API image push (DEPLOY_TARGET=${DEPLOY_TARGET})"
+  fi
+
+  if [[ "${DEPLOY_TARGET}" == "ui" || "${DEPLOY_TARGET}" == "both" ]]; then
+    docker build --platform "${PLATFORM}" -t "${UI_IMAGE}" "${ROOT_DIR}/ui-finops"
+    docker push "${UI_IMAGE}"
+    echo "Pushed ${UI_IMAGE}"
+  else
+    echo "Skipping UI image build (DEPLOY_TARGET=${DEPLOY_TARGET})"
+  fi
 }
 
 cmd_sync_secrets() {
@@ -127,22 +155,83 @@ cmd_sync_secrets() {
   fi
 }
 
-cmd_deploy_revision() {
-  require_auth
-  # Non-container flags must come before --container (gcloud requirement).
-  gcloud run services update "${SERVICE}" \
-    --project="${PROJECT_ID}" \
-    --region="${REGION}" \
-    --quiet \
-    --container=opencost-ui \
-    --image="${UI_IMAGE}" \
-    --container=opencost \
-    --image="${IMAGE}"
-  echo "Deployed ${SERVICE} ui=${UI_IMAGE} api=${IMAGE}"
+service_url() {
   gcloud run services describe "${SERVICE}" \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
     --format='value(status.url)'
+}
+
+admin_token() {
+  if [[ -n "${ADMIN_TOKEN:-}" ]]; then
+    printf '%s' "${ADMIN_TOKEN}"
+    return 0
+  fi
+  if [[ -n "${ADMIN_TOKEN_FILE}" && -f "${ADMIN_TOKEN_FILE}" ]]; then
+    tr -d '\n' <"${ADMIN_TOKEN_FILE}"
+    return 0
+  fi
+  gcloud secrets versions access latest \
+    --secret="${SECRET_ADMIN}" \
+    --project="${PROJECT_ID}"
+}
+
+cmd_rebuild_cloudcost() {
+  require_auth
+  local url token
+  url="$(service_url)"
+  token="$(admin_token)"
+  if [[ -z "${token}" ]]; then
+    echo "No ADMIN_TOKEN available (env, ADMIN_TOKEN_FILE, or secret ${SECRET_ADMIN})" >&2
+    exit 1
+  fi
+  echo "Rebuilding cloud cost for window=${REBUILD_WINDOW} via ${url}"
+  # OpenCost cloud-cost store is in-memory; API restarts leave /cloudCost empty until refresh/rebuild.
+  curl -sS -f -H "Authorization: Bearer ${token}" \
+    "${url}/model/cloudCost/rebuild?window=${REBUILD_WINDOW}&commit=true" \
+    | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d, indent=2)[:2000])' \
+    || curl -sS -f -H "Authorization: Bearer ${token}" \
+      "${url}/cloudCost/rebuild?window=${REBUILD_WINDOW}&commit=true" \
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d, indent=2)[:2000])'
+  echo "Cloud cost rebuild requested"
+}
+
+cmd_deploy_revision() {
+  require_auth
+  case "${DEPLOY_TARGET}" in
+    ui|api|both) ;;
+    *)
+      echo "DEPLOY_TARGET must be ui, api, or both (got: ${DEPLOY_TARGET})" >&2
+      exit 1
+      ;;
+  esac
+
+  # Non-container flags must come before --container (gcloud requirement).
+  local -a args=(
+    run services update "${SERVICE}"
+    --project="${PROJECT_ID}"
+    --region="${REGION}"
+    --quiet
+  )
+  if [[ "${DEPLOY_TARGET}" == "ui" || "${DEPLOY_TARGET}" == "both" ]]; then
+    args+=(--container=opencost-ui --image="${UI_IMAGE}")
+  fi
+  if [[ "${DEPLOY_TARGET}" == "api" || "${DEPLOY_TARGET}" == "both" ]]; then
+    args+=(--container=opencost --image="${IMAGE}")
+  fi
+  gcloud "${args[@]}"
+  echo "Deployed ${SERVICE} target=${DEPLOY_TARGET} ui=${UI_IMAGE} api=${IMAGE}"
+  service_url
+
+  if [[ "${DEPLOY_TARGET}" == "api" || "${DEPLOY_TARGET}" == "both" ]]; then
+    if [[ "${REBUILD_AFTER_API_DEPLOY}" == "true" ]]; then
+      echo "API image updated — waiting briefly, then rebuilding cloud-cost store"
+      sleep 15
+      cmd_rebuild_cloudcost || echo "WARN: rebuild-cloudcost failed; dashboard may stay empty until next refresh" >&2
+    else
+      echo "Skipped rebuild (REBUILD_AFTER_API_DEPLOY=${REBUILD_AFTER_API_DEPLOY}). Run: $0 rebuild-cloudcost"
+    fi
+  fi
 }
 
 cmd_all() {
@@ -157,6 +246,7 @@ main() {
     push-image) cmd_push_image ;;
     sync-secrets) cmd_sync_secrets ;;
     deploy-revision) cmd_deploy_revision ;;
+    rebuild-cloudcost) cmd_rebuild_cloudcost ;;
     all) cmd_all ;;
     print-env) cmd_print_env ;;
     -h|--help|help|"") usage; [[ -n "${cmd}" ]] || exit 1 ;;

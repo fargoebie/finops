@@ -146,10 +146,11 @@ export default function App({
           <h2>No cost rows in this window yet</h2>
           <p>
             The connection is healthy, but OpenCost has not returned spend for
-            the selected range. After a redeploy the in-memory store can be
-            empty until the next cloud-cost refresh finishes — wait for{" "}
-            <code>lastRun</code> to advance, or pick a window inside the
-            reported coverage.
+            the selected range. Redeploying the API sidecar clears the
+            in-memory store until the next refresh (or an admin{" "}
+            <code>/cloudCost/rebuild</code>). Prefer{" "}
+            <code>DEPLOY_TARGET=ui</code> for SPA-only deploys, or run{" "}
+            <code>./infra/scripts/deploy.sh rebuild-cloudcost</code>.
           </p>
         </section>
       ) : null}
