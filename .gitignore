@@ -26,3 +26,6 @@ coverage.out
 
 # graphify knowledge graph (local agent tooling)
 graphify-out/
+
+# Brainstorming companion
+.superpowers/

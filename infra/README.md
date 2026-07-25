@@ -69,28 +69,32 @@ export ADMIN_TOKEN_FILE=/secure/admin_token.txt   # recommended
 | `create-deployer-sa.sh` | Create deployer SA + roles + base64 for agent secret |
 | `auth-from-secret.sh` | Decode `GCP_SA_KEY_B64` → `GOOGLE_APPLICATION_CREDENTIALS` |
 | `bootstrap-state-bucket.sh` | `gs://demogcp-terra2021-tofu-state` + versioning |
-| `deploy.sh` | push API+UI AR images, sync secrets, update Cloud Run |
+| `deploy.sh` | push API image + locally built `ui-finops` AR image, sync secrets, update Cloud Run |
 
-## UI (Option B — sidecar)
+## FinOps SPA (Option B — sidecar)
 
 Cloud Run runs **two containers** in one service:
 
 | Container | Port | Role |
 |-----------|------|------|
-| `opencost-ui` | **9090** (ingress) | SPA + nginx proxy `/model` → API |
+| `opencost-ui` | **9090** (ingress) | FinOps SPA + nginx proxy `/model` → API |
 | `opencost` | 9003 (localhost only) | Cloud Cost API → BigQuery |
 
-UI env: `API_SERVER=127.0.0.1`, `API_PORT=9003`, `LEGACY_MODE=false`, `BASE_URL=/model`.
+The ingress image is built from [`../ui-finops`](../ui-finops) by `./scripts/deploy.sh push-image` and needs no Cloud Run UI env. Its nginx config serves the SPA at `/`, exposes `/healthz`, and proxies `/model/*` to the OpenCost API sidecar.
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Home dashboard (cloud costs) |
-| `/dashboards` | Saved dashboards |
-| `/reports` | Reports |
-| `/settings` | Settings |
-| `/model/cloudCost*` | API proxied to the sidecar |
+| `/` | GCP FinOps Inform home |
+| `/model/cloudCost/status` | Smoke status endpoint via UI proxy |
+| `/model/cloudCost*` | Cloud Cost API proxied to the sidecar |
 
-`/cloud` is legacy-only and is not used with the default UI.
+Smoke after `deploy.sh deploy-revision`:
+
+```bash
+BASE=https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app
+curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/"
+curl -sS "$BASE/model/cloudCost/status" | jq '.data[0].connectionStatus'
+```
 
 ## Intentionally omitted (v1)
 

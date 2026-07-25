@@ -2,15 +2,15 @@
 
 Secrets are injected **only at environment start**. This run had `GEMINI_API_KEY` only. After you add `GCP_SA_KEY_B64`, **start a new agent** — do not expect this session to see the new secret.
 
-## Status (2026-07-24 deploy run)
+## Status (2026-07-25 deploy run)
 
-Deployed Cloud Run cloud-cost API on `demogcp-terra2021`:
+Deployed Cloud Run cloud-cost API + **GCP FinOps SPA** on `demogcp-terra2021`:
 
 | Item | Value |
 |------|--------|
 | Service URL | `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app` |
-| UI | `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app/` (home/dashboards; `LEGACY_MODE=false`) |
-| Images | `…/opencost:<sha>` + `…/opencost-ui:<sha>` (multi-container) |
+| **UI (home)** | `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app/` — **FinOps SPA only** (six Inform sections; no stock OpenCost nav) |
+| Images | `…/opencost:<sha>` + `…/opencost-ui:<sha>` (multi-container; `opencost-ui` image built from `ui-finops/`) |
 | Runtime SA | `opencost-cloudcost@demogcp-terra2021.iam.gserviceaccount.com` |
 | BQ dataset | `export_billing_demogcp_detailed` (US) |
 | Table | `gcp_billing_export_resource_v1_01E5F4_66804E_8286B7` |
@@ -18,7 +18,10 @@ Deployed Cloud Run cloud-cost API on `demogcp-terra2021`:
 | Tofu state | `gs://demogcp-terra2021-tofu-state` prefix **`tofu/opencost`** (isolated; do **not** use `tofu/state`) |
 | Invokers | **`allUsers` (public URL)**, `user:farry@terralogiq.com`, deployer SA |
 
-`/cloudCost/status` → `Connection Successful` with coverage over the billing export table.
+**Smoke (via UI proxy):**
+
+- `GET /` → `200` (FinOps SPA)
+- `GET /model/cloudCost/status` → `Connection Successful` with coverage over the billing export table
 
 ### Note on shared state
 
@@ -44,11 +47,13 @@ Continue OpenCost Cloud Run work on develop for demogcp-terra2021.
 4. Ensure infra/terraform.tfvars and infra/backend.hcl exist locally (gitignored; prefix tofu/opencost)
 5. Install gcloud/tofu/docker if missing; then: cd infra && tofu init -backend-config=backend.hcl && tofu apply
    (seed-if-empty secrets only; does not clobber existing versions; images ignored)
-6. Optional day-2: ADMIN_TOKEN_FILE=... ./infra/scripts/deploy.sh all
-7. Smoke test /model/cloudCost/status (UI ingress) — expect Connection Successful
+6. Day-2 deploy: ./infra/scripts/deploy.sh push-image && ./infra/scripts/deploy.sh deploy-revision
+   (builds ui-finops → opencost-ui image; tag = git HEAD short SHA)
+7. Smoke: GET / (FinOps SPA home) + GET /model/cloudCost/status — expect 200 and Connection Successful
 
 Project is same for deploy + BQ: demogcp-terra2021.
 Follow AGENTS.md Plan A/B and docs/architecture-compliance.md. Do not commit secrets or terraform.tfvars.
+Implementation plan: docs/superpowers/plans/2026-07-25-gcp-finops-dashboard.md (Tasks 1–16 complete).
 ```
 
 ## Verify secrets on new run
@@ -71,4 +76,5 @@ test -n "${GCP_SA_KEY_B64:-}" && echo "GCP_SA_KEY_B64 ok len=${#GCP_SA_KEY_B64}"
 ## Branch / PR
 
 - **Working branch: `develop`** (feature branch merged via https://github.com/fargoebie/finops/pull/3)
-- Key paths: `infra/`, `AGENTS.md`, `docs/architecture-compliance.md`
+- FinOps dashboard feature branch: `cursor/gcp-finops-dashboard-mvp-plan-b2d4`
+- Key paths: `ui-finops/`, `infra/`, `AGENTS.md`, `docs/architecture-compliance.md`
