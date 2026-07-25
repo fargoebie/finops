@@ -4,32 +4,20 @@
 project_id  = "demogcp-terra2021"
 region      = "us-central1"
 zone        = "us-central1-a"
-name_prefix = "opencost"
+name_prefix = "finops"
 
 # Same project: leave billing_export_project_id unset (defaults to project_id).
 # billing_export_project_id = "demogcp-terra2021"
 
-# Who may invoke Cloud Run.
-# Demo: allUsers = public URL (no identity token). Admin routes still need ADMIN_TOKEN.
-# For locked-down prod, remove allUsers and list only user:/serviceAccount: members.
-invoker_members = [
-  "allUsers",
-  "user:farry@terralogiq.com",
-  "serviceAccount:opencost-deployer@demogcp-terra2021.iam.gserviceaccount.com",
-]
-
-# Initial tag only — deploy.sh pushes git-sha tags and updates Cloud Run;
-# tofu ignores container image drift after the first apply.
-image_tag = "bootstrap"
-
-cloud_run_cpu           = "1"
-cloud_run_memory        = "1Gi"
-cloud_run_ui_cpu         = "0.5"
-cloud_run_ui_memory      = "256Mi"
-cloud_run_min_instances = 0
-cloud_run_max_instances = 2
-
 vpc_cidr = "10.20.0.0/24"
 
-# Seed secrets via scripts, not tfvars:
+# Restrict to your team VPN or office CIDR. "0.0.0.0/0" opens to the internet.
+allowed_ingress_cidrs = ["0.0.0.0/0"]
+
+# IAM members who can SSH via IAP tunnel.
+iap_ssh_members = [
+  "user:farry@terralogiq.com",
+]
+
+# Seed Metabase DB password via scripts, not tfvars:
 #   ./scripts/deploy.sh sync-secrets
