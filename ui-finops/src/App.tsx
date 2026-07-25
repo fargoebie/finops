@@ -3,6 +3,7 @@ import { useState } from "react";
 import { formatMoney } from "./format/money";
 import { useInformData } from "./hooks/useInformData";
 import type { WindowPreset } from "./types/viewModels";
+import { ExecPulse } from "./widgets/ExecPulse";
 import { StatusFooter } from "./widgets/StatusFooter";
 
 const presets: Array<{ label: string; value: WindowPreset }> = [
@@ -111,7 +112,13 @@ export default function App() {
       </section>
 
       <div className="placeholder-grid">
-        {sections.map((title) => (
+        <ExecPulse
+          data={informData.execPulse.data}
+          error={informData.execPulse.error}
+          loading={informData.execPulse.loading}
+          onRetry={informData.execPulse.retry}
+        />
+        {sections.slice(1).map((title) => (
           <section className="placeholder-card" key={title}>
             <p className="eyebrow">Placeholder</p>
             <h2>{title}</h2>
