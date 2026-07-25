@@ -1,14 +1,12 @@
 locals {
   required_apis = toset([
-    "run.googleapis.com",
-    "artifactregistry.googleapis.com",
     "secretmanager.googleapis.com",
     "bigquery.googleapis.com",
     "iam.googleapis.com",
     "compute.googleapis.com",
+    "iap.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "monitoring.googleapis.com",
-    "cloudtrace.googleapis.com",
     "logging.googleapis.com",
   ])
 }

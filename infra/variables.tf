@@ -1,78 +1,30 @@
 variable "project_id" {
-  description = "GCP project ID that hosts Cloud Run, Artifact Registry, and secrets."
+  description = "GCP project ID that hosts the VM, secrets, and BigQuery."
   type        = string
 }
 
 variable "region" {
-  description = "Primary region for Cloud Run, subnet, and Artifact Registry."
+  description = "Primary GCP region."
   type        = string
   default     = "us-central1"
 }
 
 variable "zone" {
-  description = "Primary zone (reserved for future zonal resources)."
+  description = "GCE zone for the VM."
   type        = string
   default     = "us-central1-a"
 }
 
 variable "name_prefix" {
-  description = "Short prefix for resource names."
+  description = "Short prefix for all resource names."
   type        = string
-  default     = "opencost"
+  default     = "finops"
 }
 
 variable "billing_export_project_id" {
-  description = "Project that owns the BigQuery billing export dataset (may equal project_id)."
+  description = "Project owning the BigQuery FOCUS billing export (defaults to project_id)."
   type        = string
   default     = null
-}
-
-variable "invoker_members" {
-  description = "IAM members granted roles/run.invoker on the Cloud Run service (user: or serviceAccount:)."
-  type        = list(string)
-  default     = []
-}
-
-variable "image_tag" {
-  description = "Initial Artifact Registry tag for opencost + opencost-ui (git sha or semver). Day-2 updates via deploy.sh; Cloud Run ignores image drift after first apply. Avoid 'latest' in prod."
-  type        = string
-  default     = "bootstrap"
-}
-
-variable "cloud_run_cpu" {
-  description = "Cloud Run CPU limit for the API sidecar."
-  type        = string
-  default     = "1"
-}
-
-variable "cloud_run_memory" {
-  description = "Cloud Run memory limit for the API sidecar."
-  type        = string
-  default     = "1Gi"
-}
-
-variable "cloud_run_ui_cpu" {
-  description = "Cloud Run CPU limit for the UI ingress container."
-  type        = string
-  default     = "0.5"
-}
-
-variable "cloud_run_ui_memory" {
-  description = "Cloud Run memory limit for the UI ingress container."
-  type        = string
-  default     = "256Mi"
-}
-
-variable "cloud_run_min_instances" {
-  description = "Minimum Cloud Run instances."
-  type        = number
-  default     = 0
-}
-
-variable "cloud_run_max_instances" {
-  description = "Maximum Cloud Run instances."
-  type        = number
-  default     = 2
 }
 
 variable "vpc_cidr" {
@@ -81,34 +33,20 @@ variable "vpc_cidr" {
   default     = "10.20.0.0/24"
 }
 
-variable "cloud_cost_refresh_rate_hours" {
-  type    = number
-  default = 6
+variable "allowed_ingress_cidrs" {
+  description = "CIDRs allowed to reach the VM on ports 80/443. Restrict to team VPN/office IPs."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
 }
 
-variable "cloud_cost_run_window_days" {
-  type    = number
-  default = 3
+variable "iap_ssh_members" {
+  description = "IAM members granted IAP tunnel access for SSH (e.g. 'user:you@example.com')."
+  type        = list(string)
+  default     = []
 }
 
-variable "cloud_cost_query_window_days" {
-  type    = number
-  default = 7
-}
-
-# Optional: explicit first secret versions at apply time.
-# When null, terraform_data.seed_secret_versions seeds from the example JSON /
-# a bootstrap admin placeholder if the secret has no enabled versions yet.
-# Day-2 updates: ./scripts/deploy.sh sync-secrets. Never commit real values in tfvars.
-variable "cloud_integration_json" {
-  description = "Optional initial cloud-integration.json body. null = seed-if-empty from examples/."
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "admin_token" {
-  description = "Optional initial ADMIN_TOKEN. null = seed-if-empty bootstrap placeholder (replace via deploy.sh)."
+variable "metabase_db_password" {
+  description = "Optional initial Metabase PostgreSQL password. null = seed a random placeholder (replace via deploy.sh sync-secrets)."
   type        = string
   default     = null
   sensitive   = true
