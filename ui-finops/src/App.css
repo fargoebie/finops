@@ -34,6 +34,7 @@ input {
 .category-mix-card,
 .exec-pulse-card,
 .exec-pulse-tile,
+.service-drivers-card,
 .placeholder-card,
 .status-panel {
   background: #ffffff;
@@ -172,6 +173,13 @@ code {
   padding: 22px;
 }
 
+.service-drivers-card {
+  display: grid;
+  gap: 20px;
+  grid-column: 1 / -1;
+  padding: 22px;
+}
+
 .exec-pulse-heading {
   align-items: flex-start;
   display: flex;
@@ -184,6 +192,13 @@ code {
   justify-content: space-between;
 }
 
+.service-drivers-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
 .exec-pulse-heading h2 {
   margin: 0;
 }
@@ -192,7 +207,17 @@ code {
   margin: 0 0 6px;
 }
 
+.service-drivers-heading h2 {
+  margin: 0 0 6px;
+}
+
 .category-mix-heading span {
+  color: #637089;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.service-drivers-heading span {
   color: #637089;
   font-size: 0.9rem;
   font-weight: 700;
@@ -337,6 +362,122 @@ code {
   color: #4b5870;
   font-size: 0.85rem;
   font-weight: 700;
+}
+
+.service-drivers-actions {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.service-drivers-filter {
+  align-items: center;
+  background: #eef3fb;
+  border-radius: 999px;
+  color: #36435a;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.9rem;
+  font-weight: 800;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.service-drivers-filter input {
+  accent-color: #2563eb;
+}
+
+.service-drivers-chart-panel,
+.service-drivers-table-panel {
+  background: #f8fbff;
+  border: 1px solid #e5edf7;
+  border-radius: 18px;
+  overflow-x: auto;
+  padding: 18px;
+}
+
+.service-drivers-chart-header,
+.service-drivers-table-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.service-drivers-chart-header h3,
+.service-drivers-table-heading h3 {
+  margin: 0 0 6px;
+}
+
+.service-drivers-chart-header p {
+  color: #637089;
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.service-drivers-chart-header span,
+.service-drivers-table-heading span {
+  color: #58667e;
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.service-drivers-tooltip {
+  background: #ffffff;
+  border: 1px solid #dfe5ef;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgb(31 45 61 / 12%);
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.service-drivers-tooltip span,
+.service-drivers-tooltip small {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.service-drivers-tooltip small {
+  color: #637089;
+}
+
+.service-drivers-table {
+  border-collapse: collapse;
+  min-width: 720px;
+  width: 100%;
+}
+
+.service-drivers-table th,
+.service-drivers-table td {
+  border-bottom: 1px solid #e1e8f3;
+  padding: 12px;
+  text-align: left;
+}
+
+.service-drivers-table th {
+  color: #2f3d53;
+  font-weight: 800;
+}
+
+.service-drivers-table thead th {
+  color: #637089;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.service-drivers-table td {
+  color: #36435a;
+  font-weight: 700;
+}
+
+.service-drivers-table tbody tr:last-child th,
+.service-drivers-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .category-legend-panel {
@@ -502,6 +643,17 @@ code {
   .category-chart-panel,
   .gmp-drill-row {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .service-drivers-heading,
+  .service-drivers-chart-header,
+  .service-drivers-table-heading {
+    flex-direction: column;
+  }
+
+  .service-drivers-actions {
+    align-items: flex-start;
     flex-direction: column;
   }
 

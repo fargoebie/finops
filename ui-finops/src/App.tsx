@@ -5,6 +5,7 @@ import { useInformData } from "./hooks/useInformData";
 import type { WindowPreset } from "./types/viewModels";
 import { CategoryMix } from "./widgets/CategoryMix";
 import { ExecPulse } from "./widgets/ExecPulse";
+import { ServiceDrivers } from "./widgets/ServiceDrivers";
 import { StatusFooter } from "./widgets/StatusFooter";
 
 const presets: Array<{ label: string; value: WindowPreset }> = [
@@ -15,7 +16,6 @@ const presets: Array<{ label: string; value: WindowPreset }> = [
 ];
 
 const sections = [
-  "3. Service drivers",
   "4. Project showback",
   "5. Credits & net vs list",
   "6. Top movers",
@@ -131,6 +131,7 @@ export default function App({
           onRetry={informData.execPulse.retry}
         />
         <CategoryMix invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
+        <ServiceDrivers invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
         {sections.map((title) => (
           <section className="placeholder-card" key={title}>
             <p className="eyebrow">Placeholder</p>
