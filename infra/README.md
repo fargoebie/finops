@@ -99,16 +99,17 @@ curl -sS -G "$BASE/model/cloudCost" -d window=7d -d aggregate=category | jq '.da
 
 ### Avoid empty dashboards after deploy
 
-The OpenCost cloud-cost store is **in-memory**. Updating the `opencost` API
-container wipes spend until the next refresh (~6h) or an admin rebuild.
+The OpenCost cloud-cost store is **in-memory**. Any new Cloud Run revision
+restarts **both** containers (even `DEPLOY_TARGET=ui`), so spend disappears
+until the next refresh (~6h) or an admin rebuild.
 
 ```bash
-# SPA-only (keeps API memory intact) — preferred for ui-finops changes
+# Prefer SPA-only image builds (faster); revision still restarts the API.
 DEPLOY_TARGET=ui ./scripts/deploy.sh push-image
 DEPLOY_TARGET=ui ./scripts/deploy.sh deploy-revision
+# deploy-revision rebuilds cloud-cost automatically (REBUILD_AFTER_API_DEPLOY=true).
 
-# After an API image change, deploy.sh rebuilds automatically (default).
-# Manual recovery:
+# Manual recovery if the dashboard is empty:
 ./scripts/deploy.sh rebuild-cloudcost
 ```
 

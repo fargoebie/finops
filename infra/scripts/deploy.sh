@@ -223,14 +223,14 @@ cmd_deploy_revision() {
   echo "Deployed ${SERVICE} target=${DEPLOY_TARGET} ui=${UI_IMAGE} api=${IMAGE}"
   service_url
 
-  if [[ "${DEPLOY_TARGET}" == "api" || "${DEPLOY_TARGET}" == "both" ]]; then
-    if [[ "${REBUILD_AFTER_API_DEPLOY}" == "true" ]]; then
-      echo "API image updated — waiting briefly, then rebuilding cloud-cost store"
-      sleep 15
-      cmd_rebuild_cloudcost || echo "WARN: rebuild-cloudcost failed; dashboard may stay empty until next refresh" >&2
-    else
-      echo "Skipped rebuild (REBUILD_AFTER_API_DEPLOY=${REBUILD_AFTER_API_DEPLOY}). Run: $0 rebuild-cloudcost"
-    fi
+  # Any new Cloud Run revision restarts all containers in the service, including
+  # the API sidecar — so even DEPLOY_TARGET=ui clears the in-memory store.
+  if [[ "${REBUILD_AFTER_API_DEPLOY}" == "true" ]]; then
+    echo "New revision deployed — waiting briefly, then rebuilding cloud-cost store"
+    sleep 20
+    cmd_rebuild_cloudcost || echo "WARN: rebuild-cloudcost failed; dashboard may stay empty until next refresh" >&2
+  else
+    echo "Skipped rebuild (REBUILD_AFTER_API_DEPLOY=${REBUILD_AFTER_API_DEPLOY}). Run: $0 rebuild-cloudcost"
   fi
 }
 
