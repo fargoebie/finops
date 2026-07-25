@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CloudCostResponse } from "../types/cloudCost";
-import { fetchExecPulseTotals, fetchUnmappedCount, percentChange } from "./useInformData";
+import {
+  fetchActiveWindowSummary,
+  fetchExecPulseTotals,
+  percentChange,
+} from "./useInformData";
 
 function response(list: number, net: number): CloudCostResponse {
   return {
@@ -83,11 +87,11 @@ describe("fetchExecPulseTotals", () => {
   });
 });
 
-describe("fetchUnmappedCount", () => {
-  it("fetches the selected service window and returns bucketize unmappedCount", async () => {
+describe("fetchActiveWindowSummary", () => {
+  it("fetches the selected service window and returns total plus unmappedCount", async () => {
     const fetcher = vi.fn().mockResolvedValue(serviceResponse());
 
-    const count = await fetchUnmappedCount(
+    const summary = await fetchActiveWindowSummary(
       new Date("2026-07-24T15:00:00Z"),
       "2026-06",
       "invoice",
@@ -98,7 +102,10 @@ describe("fetchUnmappedCount", () => {
       "2026-06-01T00:00:00Z,2026-07-01T00:00:00Z",
       "service",
     );
-    expect(count).toBe(1);
+    expect(summary).toEqual({
+      total: { list: 30, net: 24 },
+      unmappedCount: 1,
+    });
   });
 });
 

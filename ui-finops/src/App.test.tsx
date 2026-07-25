@@ -3,6 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 
 const mockedInformData = vi.hoisted(() => ({
   value: {
+    activeWindow: {
+      error: null,
+      loading: false,
+      total: { list: 1250000, net: 980000 },
+      unmappedCount: 3,
+    },
     connectionStatus: "Connection Successful",
     currentWindow: {
       label: "June 2026",
@@ -58,7 +64,10 @@ describe("App", () => {
 
     expect(html).toContain("Credits &amp; net vs list");
     expect(html).toContain("Top movers");
-    expect(html).not.toContain("Reserved for the Task 9+ data widget implementation.");
+    expect(html).not.toContain("Awaiting data widgets");
+    expect(html).not.toContain("$0.00");
+    expect(html).toContain("$1,250,000 list");
+    expect(html).toContain("$980,000 net");
     expect(html).toContain("Unmapped services");
     expect(html).toContain(">3</strong>");
   });
