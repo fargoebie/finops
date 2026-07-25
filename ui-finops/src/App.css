@@ -34,6 +34,7 @@ input {
 .category-mix-card,
 .exec-pulse-card,
 .exec-pulse-tile,
+.project-showback-card,
 .service-drivers-card,
 .placeholder-card,
 .status-panel {
@@ -180,6 +181,13 @@ code {
   padding: 22px;
 }
 
+.project-showback-card {
+  display: grid;
+  gap: 20px;
+  grid-column: 1 / -1;
+  padding: 22px;
+}
+
 .exec-pulse-heading {
   align-items: flex-start;
   display: flex;
@@ -199,6 +207,12 @@ code {
   justify-content: space-between;
 }
 
+.project-showback-heading {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+}
+
 .exec-pulse-heading h2 {
   margin: 0;
 }
@@ -211,6 +225,10 @@ code {
   margin: 0 0 6px;
 }
 
+.project-showback-heading h2 {
+  margin: 0 0 6px;
+}
+
 .category-mix-heading span {
   color: #637089;
   font-size: 0.9rem;
@@ -218,6 +236,12 @@ code {
 }
 
 .service-drivers-heading span {
+  color: #637089;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.project-showback-heading span {
   color: #637089;
   font-size: 0.9rem;
   font-weight: 700;
@@ -480,6 +504,149 @@ code {
   border-bottom: 0;
 }
 
+.project-showback-layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(320px, 1.1fr) minmax(280px, 0.9fr);
+}
+
+.project-bars-panel,
+.project-table-panel,
+.project-drill-panel {
+  background: #f8fbff;
+  border: 1px solid #e5edf7;
+  border-radius: 18px;
+  overflow-x: auto;
+  padding: 18px;
+}
+
+.project-showback-panel-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.project-showback-panel-heading h3 {
+  margin: 0 0 6px;
+}
+
+.project-showback-panel-heading p {
+  color: #637089;
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.project-bars-list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.project-bars-list button {
+  background: #ffffff;
+  border: 1px solid #e1e8f3;
+  border-radius: 14px;
+  color: #172033;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.project-bars-list button.active,
+.project-bars-list button:hover,
+.project-showback-table button[aria-pressed="true"],
+.project-showback-table button:hover {
+  border-color: #2563eb;
+  box-shadow: 0 10px 24px rgb(37 99 235 / 10%);
+}
+
+.project-bar-row {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.project-bar-row span {
+  color: #4b5870;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.project-bar-track {
+  background: #e8eef7;
+  border-radius: 999px;
+  height: 12px;
+  overflow: hidden;
+}
+
+.project-bar-track span {
+  background: linear-gradient(90deg, #2563eb, #10b981);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.project-showback-table {
+  border-collapse: collapse;
+  min-width: 520px;
+  width: 100%;
+}
+
+.project-showback-table th,
+.project-showback-table td {
+  border-bottom: 1px solid #e1e8f3;
+  padding: 12px;
+  text-align: left;
+}
+
+.project-showback-table th {
+  color: #2f3d53;
+  font-weight: 800;
+}
+
+.project-showback-table thead th {
+  color: #637089;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.project-showback-table td {
+  color: #36435a;
+  font-weight: 700;
+}
+
+.project-showback-table button {
+  background: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.project-showback-table tbody tr:last-child th,
+.project-showback-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.project-showback-footnote {
+  color: #637089;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin: 14px 0 0;
+}
+
 .category-legend-panel {
   display: grid;
   gap: 14px;
@@ -636,7 +803,8 @@ code {
   }
 
   .category-mix-layout,
-  .category-chart-panel {
+  .category-chart-panel,
+  .project-showback-layout {
     grid-template-columns: 1fr;
   }
 
@@ -648,7 +816,9 @@ code {
 
   .service-drivers-heading,
   .service-drivers-chart-header,
-  .service-drivers-table-heading {
+  .service-drivers-table-heading,
+  .project-showback-heading,
+  .project-showback-panel-heading {
     flex-direction: column;
   }
 

@@ -5,6 +5,7 @@ import { useInformData } from "./hooks/useInformData";
 import type { WindowPreset } from "./types/viewModels";
 import { CategoryMix } from "./widgets/CategoryMix";
 import { ExecPulse } from "./widgets/ExecPulse";
+import { ProjectShowback } from "./widgets/ProjectShowback";
 import { ServiceDrivers } from "./widgets/ServiceDrivers";
 import { StatusFooter } from "./widgets/StatusFooter";
 
@@ -16,7 +17,6 @@ const presets: Array<{ label: string; value: WindowPreset }> = [
 ];
 
 const sections = [
-  "4. Project showback",
   "5. Credits & net vs list",
   "6. Top movers",
 ] as const;
@@ -132,6 +132,7 @@ export default function App({
         />
         <CategoryMix invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
         <ServiceDrivers invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
+        <ProjectShowback invoiceMonth={invoiceMonth} now={appNow} preset={preset} />
         {sections.map((title) => (
           <section className="placeholder-card" key={title}>
             <p className="eyebrow">Placeholder</p>
