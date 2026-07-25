@@ -26,6 +26,7 @@ select
     commitment_discount_id,
     commitment_discount_name,
     commitment_discount_type,
+    commitment_discount_category,
     commitment_discount_status
 from {{ ref('stg_focus_billing') }}
 where charge_type in ('Usage', 'Purchase', 'Tax')

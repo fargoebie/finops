@@ -11,8 +11,9 @@ name_prefix = "finops"
 
 vpc_cidr = "10.20.0.0/24"
 
-# Restrict to your team VPN or office CIDR. "0.0.0.0/0" opens to the internet.
-allowed_ingress_cidrs = ["0.0.0.0/0"]
+# Restrict to team VPN or office CIDR — required, no default.
+# allowed_ingress_cidrs = ["YOUR_OFFICE_CIDR/32"]
+allowed_ingress_cidrs = ["0.0.0.0/0"]   # TODO: tighten before production
 
 # IAM members who can SSH via IAP tunnel.
 iap_ssh_members = [

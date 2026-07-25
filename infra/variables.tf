@@ -36,7 +36,7 @@ variable "vpc_cidr" {
 variable "allowed_ingress_cidrs" {
   description = "CIDRs allowed to reach the VM on ports 80/443. Restrict to team VPN/office IPs."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "iap_ssh_members" {

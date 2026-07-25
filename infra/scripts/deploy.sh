@@ -19,10 +19,12 @@ Project: ${PROJECT_ID}  Zone: ${ZONE}  VM: ${VM_NAME}
 
 Commands:
   sync          Copy docker-compose.yml, nginx/, dbt/ to VM at /opt/finops
+  profiles       Write dbt profiles.yml on VM from env vars
+  nginx-setup    Copy nginx config, enable site, reload (run certbot manually after)
   restart       Pull latest images and restart docker compose stack on VM
   dbt-run       Trigger dbt run on VM (tail last 20 lines)
   sync-secrets  Rotate Metabase DB password in Secret Manager
-  all           sync && restart
+  all           sync && profiles && restart
   ssh           Open IAP SSH session to VM
   print-env     Show resolved env vars
 
@@ -69,6 +71,26 @@ cmd_sync() {
     "${ROOT_DIR}/dbt/." \
     "${VM_NAME}:/opt/finops/dbt/"
   echo "Synced to ${VM_NAME}:/opt/finops/"
+}
+
+cmd_profiles() {
+  require_auth
+  local project="${PROJECT_ID}"
+  gcloud compute ssh "${VM_NAME}" \
+    --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
+    --command="mkdir -p /opt/finops/dbt && printf 'finops:\n  target: prod\n  outputs:\n    prod:\n      type: bigquery\n      method: oauth\n      project: ${project}\n      dataset: dbt_staging\n      location: US\n      timeout_seconds: 300\n      threads: 4\n' > /opt/finops/dbt/profiles.yml && echo 'profiles.yml written'"
+}
+
+cmd_nginx_setup() {
+  require_auth
+  gcloud compute ssh "${VM_NAME}" \
+    --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
+    --command="set -euo pipefail
+cp /opt/finops/nginx/metabase.conf /etc/nginx/sites-available/metabase
+ln -sf /etc/nginx/sites-available/metabase /etc/nginx/sites-enabled/metabase
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl reload nginx
+echo 'nginx configured — run certbot manually: certbot --nginx -d YOUR_DOMAIN'"
 }
 
 cmd_restart() {
@@ -120,10 +142,12 @@ main() {
   local cmd="${1:-}"
   case "${cmd}" in
     sync)          cmd_sync ;;
+    profiles)      cmd_profiles ;;
+    nginx-setup)   cmd_nginx_setup ;;
     restart)       cmd_restart ;;
     dbt-run)       cmd_dbt_run ;;
     sync-secrets)  cmd_sync_secrets ;;
-    all)           cmd_sync && cmd_restart ;;
+    all)           cmd_sync && cmd_profiles && cmd_restart ;;
     ssh)           cmd_ssh ;;
     print-env)     cmd_print_env ;;
     -h|--help|help|"") usage; [[ -n "${cmd}" ]] || exit 1 ;;

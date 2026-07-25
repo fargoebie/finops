@@ -40,6 +40,12 @@ resource "google_project_iam_member" "finops_vm_log_writer" {
   member  = "serviceAccount:${google_service_account.finops_vm.email}"
 }
 
+resource "google_project_iam_member" "finops_vm_trace_agent" {
+  project = var.project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.finops_vm.email}"
+}
+
 # D. IAP SSH — no public port 22.
 resource "google_iap_tunnel_instance_iam_binding" "ssh" {
   project  = var.project_id
