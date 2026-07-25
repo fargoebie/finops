@@ -1,113 +1,111 @@
-# AGENTS.md - OpenCost AI Agent Guide
+# AGENTS.md - GCP FinOps AI Agent Guide
 
-This document provides guidance for AI assistants working with this OpenCost-based repository.
+This document provides guidance for AI assistants working with this repository.
 
 ## AI Assistant Behaviour
 
 - Never include AI assistant session links or URLs (e.g. claude.ai) in commit messages or pull request bodies.
 - Prefer graphify (`graphify query` / `path` / `explain`) when `graphify-out/` exists before broad Grep/Read exploration.
-- For this fork, default to **cloud-cost-first** work (GCP BigQuery billing + Cloud Run). Do not expand into Kubernetes allocation/Prometheus unless the user asks.
+- For this repo, default to **dbt/analytics-first** work (FOCUS billing models + Metabase). Do not expand into Kubernetes allocation/Prometheus unless the user asks.
 
-## Fork Objective (Primary)
+## Project Objective (Primary)
 
-This fork’s primary goal is to run OpenCost as a **GCP Cloud Cost API**:
+This repository runs a **GCP FinOps analytics stack**:
 
-1. Ingest **actual GCP invoice data** from BigQuery billing export
-2. Expose it via `/cloudCost*` and a Cloud Run FinOps SPA at `/`
-3. Deploy the service on **Cloud Run** (no Kubernetes required)
+1. Ingest **GCP FOCUS billing export** from BigQuery
+2. Transform it with **dbt Core** into spend waterfall, credit breakdown, CUD, and showback marts
+3. Visualise via **self-hosted Metabase** on an e2-medium VM (~$42/month)
 
-Kubernetes cost allocation (`/allocation`, `/assets`, Prometheus) is **out of primary scope**. Keep upstream OpenCost conventions, but treat allocation paths as optional.
+Kubernetes cost allocation, OpenCost API, and Prometheus are **out of primary scope**.
 
 ### Agent priorities
 
 When implementing or debugging, prefer these code areas first:
 
-1. `pkg/cloud/gcp/` — BigQuery integration, authorizers
-2. `pkg/cloudcost/` — ingestion pipeline, querier, status
-3. `pkg/cloud/config/` — `cloud-integration.json` watchers
-4. `pkg/cmd/costmodel/` — cloud-cost-only startup path
-5. `pkg/env/cloudcost.go` — cloud cost env vars
+1. `dbt/models/` — staging → intermediate → marts
+2. `infra/` — OpenTofu for VM, VPC, IAM, Secret Manager
+3. `docker-compose.yml` — Metabase + PostgreSQL containers
+4. `nginx/` — TLS proxy config
 
 ## Project Overview
 
-OpenCost is a CNCF Kubernetes cost monitoring tool. Upstream supports:
+A GCP-native FinOps analytics stack built on the FOCUS billing standard:
 
-- Real-time cost allocation by namespace, pod, controller, service, etc.
-- Multi-cloud cost monitoring (AWS, Azure, GCP, …)
-- Dynamic on-demand pricing via cloud provider APIs
-- MCP server and Prometheus metrics export
-
-**This fork focuses on:** GCP Cloud Costs via BigQuery export, deployed on Cloud Run.
+- **Data source:** GCP FOCUS billing export (`gcp_billing_export_focus_v1_*`) in BigQuery
+- **Transform:** dbt Core in `dbt/` — staging → intermediate → marts
+- **Visualisation:** self-hosted Metabase (Docker, port 3000) behind nginx TLS
+- **Deploy target:** e2-medium VM (`finops-vm`) on GCP, managed with OpenTofu in `infra/`
+- **Auth:** VM service account (`finops-vm@...`) with BigQuery read + Secret Manager access via ADC; IAP SSH only
 
 ## Repository Structure
 
 ```
-opencost/
-├── cmd/costmodel/          # Main entry point (main.go)
-├── core/                   # Core module (shared libraries)
-├── modules/
-│   ├── collector-source/   # Metrics collector (allocation; secondary here)
-│   └── prometheus-source/  # Prometheus source (allocation; secondary here)
-├── pkg/
-│   ├── cloud/
-│   │   └── gcp/            # PRIMARY: BigQuery billing + authorizers
-│   ├── cloudcost/          # PRIMARY: cloud cost pipeline
-│   ├── cloud/config/       # cloud-integration.json loading
-│   ├── cmd/costmodel/      # Process wiring (k8s optional, cloud cost optional)
-│   ├── costmodel/          # API handlers / InitializeCloudCost
-│   ├── env/                # Environment variable definitions
-│   └── mcp/                # MCP server (optional; currently needs k8s path)
-├── configs/                # Default pricing configurations
-├── docs/                   # Project docs (includes architecture-compliance.md)
-├── infra/                  # OpenTofu IaC for GCP Cloud Run (cloud-cost-only)
-├── graphify-out/           # Local knowledge graph (gitignored)
-├── ui/                     # Upstream UI components (secondary here)
-└── ui-finops/              # PRIMARY: Cloud Run FinOps SPA ingress
+finops/
+├── dbt/                    # PRIMARY: dbt FOCUS billing models
+│   ├── models/
+│   │   ├── staging/        # stg_focus_billing — raw FOCUS columns
+│   │   ├── intermediate/   # int_charges, int_credits
+│   │   └── marts/          # fct_spend_waterfall, fct_credit_breakdown,
+│   │                       #   fct_commitment_discounts, fct_monthly_showback
+│   ├── profiles.yml        # BigQuery ADC profile (env-var driven)
+│   └── dbt_project.yml
+├── infra/                  # PRIMARY: OpenTofu IaC — VM, VPC, IAM, secrets
+│   ├── *.tf                # Flat layout: vm.tf, vpc.tf, iam.tf, secrets.tf, …
+│   ├── scripts/
+│   │   ├── deploy.sh       # sync / restart / dbt-run / sync-secrets / ssh
+│   │   ├── vm-startup.sh   # Docker, dbt-bigquery, nginx, ops agent, dbt cron
+│   │   └── env.sh          # Shared defaults (PROJECT_ID=demogcp-terra2021)
+│   └── examples/
+│       └── metabase-bigquery-setup.md
+├── docker-compose.yml      # Metabase + PostgreSQL (port 127.0.0.1:3000)
+├── nginx/                  # HTTP→HTTPS redirect, TLS proxy to Metabase
+└── docs/                   # architecture-compliance.md baseline
 ```
 
-**Compliance baseline:** [`docs/architecture-compliance.md`](docs/architecture-compliance.md) — project-agnostic GCP architecture principles. All deploy work must satisfy those principles (see **Architecture Compliance Review** below).
+**Compliance baseline:** [`docs/architecture-compliance.md`](docs/architecture-compliance.md) — project-agnostic GCP architecture principles. All deploy work must satisfy those principles.
 
-## Architecture (Cloud-Cost Path)
+## Architecture (FinOps Analytics Path)
 
 ```
 GCP Billing Account
         │
         ▼
-BigQuery resource/detailed export table
+BigQuery FOCUS export table
+  gcp_billing_export_focus_v1_*
         │
         ▼
-OpenCost cloudcost pipeline  (CLOUD_COST_ENABLED=true)
-  pkg/cloud/gcp/bigquery*.go
-  pkg/cloudcost/*
+dbt Core  (dbt/models/)
+  stg_focus_billing
+  int_charges / int_credits
+  fct_spend_waterfall / fct_credit_breakdown
+  fct_commitment_discounts / fct_monthly_showback
+        │  (BigQuery views/tables in finops_dbt dataset)
+        ▼
+Metabase (Docker, port 3000)
+  ← nginx TLS proxy (port 443)
         │
         ▼
-In-memory CloudCost repository
-        │
-        ▼
-HTTP API :9003  →  GET /cloudCost, /cloudCost/status, …
-        │
-        ▼
-Cloud Run service (this fork’s deploy target)
+e2-medium VM  finops-vm  (Cloud Run / Kubernetes: not used)
 ```
 
-**Important:** Kubernetes is enabled only when `KUBERNETES_PORT` is set (injected automatically in pods). On Cloud Run / local Docker without that env, OpenCost stays Kubernetes-off and can run cloud-cost-only.
-
-Allocation pricing (`CLOUD_PROVIDER_API_KEY` / Billing Catalog) is a **separate** system from Cloud Costs. An API key alone does **not** populate `/cloudCost`.
+**Active project:** `demogcp-terra2021`  
+**BQ export table:** `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_focus_v1_01E5F4_66804E_8286B7`  
+**Tofu state prefix:** `tofu/finops` on `gs://demogcp-terra2021-tofu-state`
 
 ---
 
-## Plan A — Connect GCP BigQuery billing
+## Plan A — Connect GCP BigQuery FOCUS billing export
 
 Use this checklist when wiring billing accounts.
 
-### A1. Enable billing export
+### A1. Enable FOCUS billing export
 
 1. Choose a GCP project to host the export dataset (billing must be enabled).
 2. Create a BigQuery dataset (note location: `US`, `EU`, `us-central1`, …).
-3. In **Billing → Billing export**, enable **detailed / resource-level** export into that dataset.
+3. In **Billing → Billing export**, enable **FOCUS export** (not standard or resource-level) into that dataset.
 4. Confirm the table exists and has rows, e.g.  
-   `gcp_billing_export_resource_v1_<BILLING_ACCOUNT_ID>`  
-   Export lag is normal; empty tables look like OpenCost failures.
+   `gcp_billing_export_focus_v1_<BILLING_ACCOUNT_ID>`  
+   Export lag is normal; empty tables look like dbt failures.
 
 ### A2. Create a reader service account
 
@@ -115,11 +113,11 @@ On the project that owns the dataset:
 
 ```bash
 export PROJECT_ID="$(gcloud config get-value project)"
-export SA_NAME="opencost-bq-reader"
+export SA_NAME="finops-vm"
 export SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 gcloud iam service-accounts create "${SA_NAME}" \
-  --display-name="OpenCost BigQuery reader"
+  --display-name="GCP FinOps VM"
 
 for ROLE in roles/bigquery.dataViewer roles/bigquery.jobUser roles/bigquery.user; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
@@ -128,465 +126,279 @@ for ROLE in roles/bigquery.dataViewer roles/bigquery.jobUser roles/bigquery.user
 done
 ```
 
-**Cloud Run preferred auth:** run the Cloud Run service as this SA and use `"authorizerType": "GCPWorkloadIdentity"` (Application Default Credentials). Avoid shipping JSON keys when possible.
+**Preferred auth:** run the VM as this SA and use Application Default Credentials (ADC). No JSON key needed on the VM.
 
-**Local/dev fallback:** create a key and embed it as `GCPServiceAccountKey` (never commit the key).
+### A3. Required dbt env vars (`profiles.yml` or VM environment)
 
-### A3. Author `cloud-integration.json`
+| Variable | Example |
+|----------|---------|
+| `DBT_PROJECT_ID` | `demogcp-terra2021` |
+| `DBT_BILLING_PROJECT_ID` | `demogcp-terra2021` |
+| `DBT_BILLING_DATASET` | `export_billing_demogcp_detailed` |
+| `DBT_FOCUS_TABLE` | `gcp_billing_export_focus_v1_01E5F4_66804E_8286B7` |
+| `DBT_OUTPUT_DATASET` | `finops_dbt` |
 
-Path resolution (code): `$CONFIG_PATH/cloud-integration.json`  
-(`CONFIG_PATH` defaults to `/var/configs`). Fallbacks also check:
+### A4. Common pitfalls
 
-- `/var/cloud-integration/cloud-integration.json`
-- `/var/configs/cloud-integration/cloud-integration.json`
-
-Example (Cloud Run / ADC):
-
-```json
-{
-  "gcp": {
-    "bigQuery": [
-      {
-        "projectID": "<PROJECT_WITH_DATASET>",
-        "dataset": "<DATASET>",
-        "table": "gcp_billing_export_resource_v1_XXXXXX_XXXXXX_XXXXXX",
-        "location": "US",
-        "queryProjectID": "",
-        "excludePartitionTime": false,
-        "authorizer": {
-          "authorizerType": "GCPWorkloadIdentity"
-        }
-      }
-    ]
-  }
-}
-```
-
-Key-based local example (do not commit secrets):
-
-```json
-{
-  "gcp": {
-    "bigQuery": [
-      {
-        "projectID": "<PROJECT_WITH_DATASET>",
-        "dataset": "<DATASET>",
-        "table": "gcp_billing_export_resource_v1_XXXXXX_XXXXXX_XXXXXX",
-        "location": "US",
-        "authorizer": {
-          "authorizerType": "GCPServiceAccountKey",
-          "key": {
-            "type": "service_account",
-            "project_id": "<PROJECT_ID>",
-            "private_key_id": "...",
-            "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
-            "client_email": "opencost-bq-reader@<PROJECT_ID>.iam.gserviceaccount.com",
-            "client_id": "...",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token"
-          }
-        }
-      }
-    ]
-  }
-}
-```
-
-Optional fields:
-
-| Field | Purpose |
-|-------|---------|
-| `location` | BigQuery job location |
-| `queryProjectID` | Project used for BQ jobs (defaults to `projectID`) |
-| `excludePartitionTime` | Set `true` if `_PARTITIONTIME` filters fail |
-
-### A4. Required runtime env (cloud-cost-only)
-
-| Variable | Value | Notes |
-|----------|-------|-------|
-| `CLOUD_COST_ENABLED` | `true` | Master switch (default `false`) |
-| `CONFIG_PATH` | e.g. `/var/configs` | Directory containing `cloud-integration.json` |
-| `API_PORT` | `9003` | HTTP API |
-| `ADMIN_TOKEN` | secret string | Needed for rebuild/config admin endpoints |
-
-Useful tuning:
-
-| Variable | Default | Role |
-|----------|---------|------|
-| `CLOUD_COST_REFRESH_RATE_HOURS` | `6` | Ingest cadence |
-| `CLOUD_COST_RUN_WINDOW_DAYS` | `3` | Standard lookback |
-| `CLOUD_COST_QUERY_WINDOW_DAYS` | `7` | Max days per BQ query chunk |
-| `CLOUD_COST_MONTH_TO_DATE_INTERVAL` | `6` | MTD rebuild frequency |
-
-### A5. Verify connectivity
-
-```bash
-# Status / coverage
-curl -sS "$OPENCOST_URL/cloudCost/status" | jq .
-
-# Sample query
-curl -sS -G "$OPENCOST_URL/cloudCost" \
-  -d window=7d -d aggregate=provider,service | jq .
-
-# Admin rebuild (requires ADMIN_TOKEN)
-curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
-  "$OPENCOST_URL/cloudCost/rebuild?commit=true" | jq .
-```
-
-### A6. Common pitfalls
-
-1. Using standard usage export instead of **resource/detailed** export
-2. Forgetting `CLOUD_COST_ENABLED=true`
+1. Using standard usage export or resource-level export instead of **FOCUS export**
+2. Wrong `location` vs dataset region
 3. Missing `bigquery.jobUser` (can read metadata but cannot run queries)
-4. Wrong `location` vs dataset region
-5. Expecting allocation pricing API key to populate Cloud Costs
-6. Assuming Cloud Costs persist across restarts (in-memory repo; rebuild from BQ after redeploy)
+4. Empty FOCUS table — export lag can be 24–48 h for a new billing export
+5. dbt profile pointing at wrong project or dataset
 
 ---
 
-## Plan B — Deploy to a GCP project (Cloud Run first, compliance-aligned)
+## Plan B — Deploy to GCP (VM, compliance-aligned)
 
-Target: cloud-cost-only OpenCost on **Cloud Run**, implemented with **OpenTofu** under `infra/` per [`docs/architecture-compliance.md`](docs/architecture-compliance.md).
+Target: dbt + Metabase on **e2-medium VM**, implemented with **OpenTofu** under `infra/` per [`docs/architecture-compliance.md`](docs/architecture-compliance.md).
 
-**Active project (deploy + BQ same):** `demogcp-terra2021`  
-Scripts default there via [`infra/scripts/env.sh`](infra/scripts/env.sh). Cloud Agent deploy auth: secret `GCP_SA_KEY_B64` (base64 of `opencost-deployer` JSON) → [`infra/scripts/auth-from-secret.sh`](infra/scripts/auth-from-secret.sh).
-
-**Live Cloud Run (cloud-cost + UI sidecar):** `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app` (**public** via `allUsers` run.invoker; admin APIs still need `ADMIN_TOKEN`)  
-**UI:** https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app/ (FinOps SPA home; six GCP Inform sections, no stock OpenCost nav)
-**API (via UI proxy):** `/model/cloudCost`, `/model/cloudCost/view/*`, `/model/cloudCost/status`  
-**BQ export target:** `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_resource_v1_01E5F4_66804E_8286B7`  
-**Tofu state prefix:** `tofu/opencost` on `gs://demogcp-terra2021-tofu-state` (never reuse `tofu/state`).
-
-**New Cloud Agent runs:** secrets do **not** reload mid-session. After adding `GCP_SA_KEY_B64`, start a new run and follow [`docs/NEXT_AGENT_RUN.md`](docs/NEXT_AGENT_RUN.md).
-
-> **Do not treat ad-hoc `gcloud` as the production path.** Use the commands below only for bootstrap / emergency debugging. Steady-state deploy is `infra/scripts/deploy.sh` after `tofu apply`.
+**Active project:** `demogcp-terra2021`  
+Scripts default there via [`infra/scripts/env.sh`](infra/scripts/env.sh).  
+**Tofu state prefix:** `tofu/finops` on `gs://demogcp-terra2021-tofu-state`.
 
 ### B0. Compliance constraints (non-negotiable)
 
 | Principle | Required for this fork |
 |-----------|------------------------|
-| **A** Dedicated least-privilege SA | Runtime SA `opencost-cloudcost@…` only; never default Compute SA |
-| **B** Secrets by reference | `cloud-integration.json` + `ADMIN_TOKEN` in Secret Manager; mount/inject by ref |
-| **C** Network isolation | Custom VPC + subnet; Cloud Run Direct VPC egress (or connector); Private Google Access for BQ APIs |
-| **D** IAP admin | N/A unless VMs are introduced; no public SSH |
-| **E** App-layer auth on public surface | Cloud Run `--no-allow-unauthenticated`; grant `roles/run.invoker` per caller; `ADMIN_TOKEN` for admin APIs |
-| **F** Durability | BQ export is system of record; define BQ dataset retention; OpenCost memory cache is ephemeral |
-| **G** IaC + private registry | OpenTofu remote state; images only from project Artifact Registry |
-| **H** Observability | Runtime SA gets `roles/cloudtrace.agent` + `roles/monitoring.metricWriter` |
+| **A** Dedicated least-privilege SA | Runtime SA `finops-vm@…` only; never default Compute SA |
+| **B** Secrets by reference | `metabase-db-password` in Secret Manager; mounted/injected by ref on the VM |
+| **C** Network isolation | Custom VPC + subnet; Private Google Access for BQ APIs; no public port 22 |
+| **D** IAP admin | IAP SSH only for VM access; no public SSH port |
+| **E** App-layer auth on public surface | nginx handles TLS; Metabase has its own auth; no anonymous data exposure |
+| **F** Durability | BQ FOCUS export is system of record; dbt outputs are rebuildable |
+| **G** IaC + private registry | OpenTofu remote state; `infra/scripts/vm-startup.sh` for VM config |
+| **H** Observability | VM SA gets `roles/cloudtrace.agent` + `roles/monitoring.metricWriter`; Ops Agent installed |
 | **I** Layout | Flat `infra/*.tf` as specified in the baseline |
 
 ### B1. Bootstrap (out-of-band, once)
 
 ```bash
-export PROJECT_ID="<your-gcp-project>"
+export PROJECT_ID="demogcp-terra2021"
 export REGION="us-central1"
 export STATE_BUCKET="${PROJECT_ID}-tofu-state"
 
 gcloud config set project "${PROJECT_ID}"
 
-# Remote OpenTofu state bucket (versioned) — create before first tofu init
+# Remote OpenTofu state bucket (versioned)
 gcloud storage buckets create "gs://${STATE_BUCKET}" --location="${REGION}" --uniform-bucket-level-access
 gcloud storage buckets update "gs://${STATE_BUCKET}" --versioning
 ```
 
-Complete **Plan A** (resource/detailed billing export + BQ reader roles for the runtime SA). Prefer **ADC / Workload Identity authorizer** in `cloud-integration.json` (no JSON keys).
+Complete **Plan A** (FOCUS billing export + BQ reader roles for the runtime SA).
 
-### B2. `infra/` layout (scaffolded)
+### B2. `infra/` layout
 
 Implemented under [`infra/`](infra/) (see [`infra/README.md`](infra/README.md)):
 
 ```
 infra/
 ├── provider.tf / variables.tf / outputs.tf / locals.tf / apis.tf
-├── iam.tf / secret_manager.tf / vpc.tf
-├── artifact_registry.tf / cloud_run.tf / monitoring_dashboard.tf
-├── scripts/deploy.sh
+├── iam.tf / secrets.tf / vpc.tf
+├── vm.tf / firewall.tf
+├── scripts/
+│   ├── deploy.sh           # sync / restart / dbt-run / sync-secrets / ssh
+│   ├── vm-startup.sh       # Docker, dbt-bigquery, nginx, ops agent, dbt cron
+│   └── env.sh              # Shared defaults
+├── examples/
+│   └── metabase-bigquery-setup.md
 ├── terraform.tfvars.example / backend.hcl.example
-├── .terraform.lock.hcl / .gitignore / README.md
+└── README.md
 ```
 
-Omitted on purpose for v1 (N/A): `cloud_sql.tf`, `redis_vm.tf`, `cloud_scheduler.tf`, `gcs.tf`.
-
-Pin tooling as in the baseline (`tofu` ≥ 1.11.5, `hashicorp/google` ≥ 7.26.0).
+Omitted on purpose for v1: `cloud_run.tf`, `artifact_registry.tf`, `cloud_sql.tf`, `redis_vm.tf`.
 
 ### B3. Identity & secrets (principle A/B)
 
-- **One SA per workload:** `opencost-cloudcost@${PROJECT_ID}.iam.gserviceaccount.com`
+- **One SA per workload:** `finops-vm@${PROJECT_ID}.iam.gserviceaccount.com`
 - **Grants (minimum):**
-  - Project (or dataset-scoped where possible): `roles/bigquery.dataViewer`, `roles/bigquery.jobUser`, `roles/bigquery.user` for billing export access
-  - Per-secret: `roles/secretmanager.secretAccessor` on `opencost-cloud-integration` and `opencost-admin-token` only
+  - `roles/bigquery.dataViewer`, `roles/bigquery.jobUser`, `roles/bigquery.user` for FOCUS export access
+  - Per-secret: `roles/secretmanager.secretAccessor` on `metabase-db-password` only
   - Observability: `roles/cloudtrace.agent`, `roles/monitoring.metricWriter`
-- **Never** attach `roles/owner`, `roles/editor`, or the default Compute Engine SA to Cloud Run
-- **Human access:** grant `roles/run.invoker` / `roles/run.developer` to individual user emails, not shared keys
-- **Secrets:** write values with deploy script / `gcloud secrets versions add`; never commit keys; never put secret literals in Cloud Run env YAML or `.tfvars`
+- **Never** attach `roles/owner`, `roles/editor`, or the default Compute Engine SA to the VM
+- **Human access:** IAP SSH only; no public port 22; grant `roles/iap.tunnelResourceAccessor` to individual user emails
 
-`cloud-integration.json` for Cloud Run should use:
+### B4. Network (principle C/D)
 
-```json
-"authorizer": { "authorizerType": "GCPWorkloadIdentity" }
-```
-
-so the runtime SA identity is used (no private key in the secret).
-
-### B4. Network (principle C)
-
-Even though OpenCost talks to managed BigQuery (not a self-hosted DB):
-
-1. Create a **custom VPC + subnet** (no default network).
+1. Custom VPC + subnet (no default network).
 2. Enable **Private Google Access** on the subnet.
-3. Attach Cloud Run with **Direct VPC egress** (preferred) or a Serverless VPC Access connector.
-4. Egress mode: private ranges + Google APIs via PGA/NAT as required; avoid giving the revision a needless public data-plane.
-5. Firewall: default deny; only open what is required (typically none inbound to VPC for this API-only service).
+3. Firewall: allow HTTP (80) and HTTPS (443) from internet; allow IAP SSH (35.235.240.0/20 on port 22); deny everything else.
+4. No public SSH port — all shell access via `gcloud compute ssh --tunnel-through-iap` or `deploy.sh ssh`.
 
-Data-store public-IP rules in the baseline are **N/A** (no Cloud SQL/Redis in v1). If those are added later, they must be private-IP + PSA.
+### B5. VM shape (principle G)
 
-### B5. Image & deploy (principle G)
+- Machine type: `e2-medium` (2 vCPU, 4 GB RAM; ~$42/month)
+- Boot disk: 50 GB SSD (`pd-balanced`)
+- Shielded VM enabled (Secure Boot + vTPM + Integrity Monitoring)
+- Startup script: `infra/scripts/vm-startup.sh`
+  - Installs Docker, Docker Compose, dbt-bigquery, nginx, Ops Agent
+  - Writes `docker-compose.yml` and nginx config
+  - Configures daily dbt cron job
+- Static external IP for DNS/TLS
 
-1. Build for a pinned platform (`linux/amd64`) and tag immutably (`git sha` / semver) — avoid floating `latest` in prod.
-2. Push **only** to project Artifact Registry:  
-   `${REGION}-docker.pkg.dev/${PROJECT_ID}/opencost/opencost:<tag>`
-3. Cloud Run pulls from that private repo (AR reader on the runtime or Cloud Run agent SA as required).
-4. Orchestrate via `infra/scripts/deploy.sh`: pull/tag the API image, build `ui-finops` as the stable `opencost-ui` image, push both to AR, then update the Cloud Run revision (or `tofu apply` for infra-owned service template).
+### B6. Service shape (principle E/H)
 
-### B6. Cloud Run service shape (principle E/H)
+- `docker-compose.yml`: Metabase + PostgreSQL, port `127.0.0.1:3000` (localhost only)
+- nginx: HTTP → HTTPS redirect; TLS proxy to Metabase at `127.0.0.1:3000`
+- dbt: runs via cron (`0 6 * * *`); outputs to `finops_dbt` BigQuery dataset
+- Metabase connects to BigQuery via ADC (VM SA identity — no JSON key)
 
-Declarative equivalent of the two-container service:
-
-- `opencost-ui` ingress image from private AR (pinned tag), built from `ui-finops`
-  - Port `9090`
-  - No OpenCost UI env (`API_SERVER`, `LEGACY_MODE`, `BASE_URL`, etc.)
-  - `/healthz` startup probe
-  - Serves the FinOps SPA at `/` and proxies `/model/*` to the API sidecar
-- `opencost` API sidecar image from private AR (pinned tag)
-  - Port `9003` on localhost only
-  - Env (non-secret): `CLOUD_COST_ENABLED=true`, `CONFIG_PATH=/var/configs`, `API_PORT=9003`
-- **No** `KUBERNETES_PORT`
-- Secrets by reference:
-  - volume/file: `/var/configs/cloud-integration.json` ← `opencost-cloud-integration`
-  - env: `ADMIN_TOKEN` ← `opencost-admin-token`
-- Ingress: internal + load balancer **or** all with **IAM auth required** (`invoker` IAM). Prefer not publicly invokable without identity.
-- VPC egress attached (B4)
-- CPU/memory sized for BQ ingest; min instances as needed for cold-start tolerance
-
-### B7. Auth model for callers (principle E)
-
-OpenCost OSS does not ship OAuth/session cookies. For this API-only deploy:
-
-1. **Transport / identity:** Cloud Run IAM (`roles/run.invoker`) for every caller (user or SA).
-2. **Admin APIs:** `ADMIN_TOKEN` bearer (secret-injected).
-3. If a public UI is added later: put it behind IAP or OAuth with explicit domain allowlists; do not expose `/cloudCost` anonymously.
+### B7. Deploy flow
 
 ```bash
-# Example authenticated probe (after IAM invoker grant)
-export OPENCOST_URL="https://opencost-cloudcost-....a.run.app"
-curl -sS -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
-  "${OPENCOST_URL}/cloudCost/status" | jq .
+cd infra
+
+# First time
+cp terraform.tfvars.example terraform.tfvars
+cp backend.hcl.example backend.hcl
+tofu init -backend-config=backend.hcl
+tofu apply
+
+# Day-2 / code changes
+./scripts/deploy.sh all           # sync files, restart services, run dbt
+./scripts/deploy.sh dbt-run       # run dbt only
+./scripts/deploy.sh restart       # restart Metabase/nginx only
+./scripts/deploy.sh sync-secrets  # re-pull secrets from Secret Manager
+./scripts/deploy.sh ssh           # IAP tunnel shell
 ```
 
 ### B8. Data lifecycle (principle F)
 
 | Store | Policy |
 |-------|--------|
-| BigQuery billing export | System of record; set dataset/table retention to match finance policy |
-| OpenCost in-memory repo | Ephemeral cache (~`CLOUD_COST_*` retention envs); rebuild after redeploy |
-| Secret versions | Enable secret versioning; disable old versions after rotation |
+| BigQuery FOCUS export | System of record; set dataset/table retention to match finance policy |
+| dbt output dataset (`finops_dbt`) | Rebuildable; define BQ retention |
+| Metabase metadata DB (PostgreSQL) | On-VM volume; back up if customising heavily |
+| Secret versions | Enable versioning; disable old versions after rotation |
 | Tofu state bucket | Versioning on; uniform bucket-level access; no force-destroy |
 
 ### B9. Smoke test checklist
 
 - [ ] `tofu plan` clean; state in versioned GCS bucket
-- [ ] Cloud Run revision healthy; image digest from **private AR**
-- [ ] FinOps SPA home returns `200`: `curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/"`
-- [ ] UI proxy status returns `Connection Successful`: `curl -sS "$BASE/model/cloudCost/status" | jq '.data[0].connectionStatus'`
-- [ ] Runtime SA is dedicated (not default compute); IAM bindings match B3
-- [ ] Secrets mounted by reference; no secret literals in service YAML / tfvars
-- [ ] Unauthenticated `curl` to service URL fails; identity-token call succeeds
-- [ ] `/model/cloudCost?window=7d&aggregate=service` returns rows through the UI proxy
-- [ ] Trace/metric roles present; basic dashboard or log-based alert exists
-- [ ] No JSON service-account key in `cloud-integration` secret (WI/ADC authorizer)
-
-### B10. Optional later: GKE Helm
-
-Not the primary path. If added, reuse the same dedicated SA via Workload Identity, same secrets pattern, and same VPC principles. Prefer Cloud Run until Kubernetes allocation is in scope.
+- [ ] VM healthy; Metabase accessible at `https://YOUR_DOMAIN`
+- [ ] dbt run succeeds: `./scripts/deploy.sh dbt-run`
+- [ ] All four mart tables present in `finops_dbt` BigQuery dataset
+- [ ] Metabase connected to BigQuery; mart tables visible in Admin → Databases
+- [ ] Runtime SA is dedicated (not default Compute); IAM bindings match B3
+- [ ] Secrets mounted by reference; no secret literals in tfvars
+- [ ] IAP SSH works; no public port 22 reachable
+- [ ] Ops Agent shipping logs + metrics to Cloud Monitoring
 
 ---
 
 ## Architecture Compliance Review
 
-Reviewed against [`docs/architecture-compliance.md`](docs/architecture-compliance.md) for the **cloud-cost-only Cloud Run** design (Plans A/B).
+Reviewed against [`docs/architecture-compliance.md`](docs/architecture-compliance.md) for the **dbt + Metabase on e2-medium VM** design.
 
 ### Non-negotiables
 
-| ID | Principle | Status for documented target | Notes / required action |
-|----|-----------|------------------------------|-------------------------|
-| **A** | Dedicated least-privilege SAs | **Required / designed** | One runtime SA; no default Compute SA; BQ + per-secret + observability roles only |
-| **B** | Managed secrets by reference | **Required / designed** | Secret Manager for integration JSON + `ADMIN_TOKEN`; WI authorizer (no key material) |
-| **C** | No public IP on data stores | **N/A (v1)** | No Cloud SQL/Redis; BQ is Google-managed. Still require custom VPC + PGA + restricted Cloud Run egress |
-| **D** | IAP-only admin access | **N/A (v1)** | No VMs. If a bastion/UI VM appears later, IAP + OS Login become mandatory |
-| **E** | App-layer auth on public services | **Required / designed** | Cloud Run IAM invoker + `ADMIN_TOKEN` for admin routes; no anonymous `/cloudCost` |
+| ID | Principle | Status | Notes |
+|----|-----------|--------|-------|
+| **A** | Dedicated least-privilege SAs | **Required / designed** | One VM SA; no default Compute SA; BQ + per-secret + observability roles only |
+| **B** | Managed secrets by reference | **Required / designed** | Secret Manager for `metabase-db-password`; ADC for BQ (no key material) |
+| **C** | No public IP on data stores | **N/A (v1)** | No Cloud SQL/Redis; BQ is Google-managed. Custom VPC + PGA still required |
+| **D** | IAP-only admin access | **Required / designed** | IAP SSH for VM; no public port 22 |
+| **E** | App-layer auth on public services | **Required / designed** | nginx TLS + Metabase auth; no anonymous data exposure |
 
 ### Other principles
 
-| ID | Principle | Status | Gap vs previous click-ops Plan B |
-|----|-----------|--------|----------------------------------|
-| **F** | Data durability & lifecycle | **Partial → defined** | BQ export retention must be set in GCP; OpenCost cache is ephemeral by design |
-| **G** | Declarative deploy + private registry | **Gap → required** | Previous plan allowed `gcloud`/`ghcr.io`; target is OpenTofu + project Artifact Registry only |
-| **H** | Traces & metrics on runtime SA | **Gap → required** | Add `cloudtrace.agent` + `monitoring.metricWriter`; add dashboard tf |
-| **I** | `infra/` OpenTofu layout | **Gap → required** | `infra/` does not exist yet; create per baseline before production deploy |
+| ID | Principle | Status |
+|----|-----------|--------|
+| **F** | Data durability & lifecycle | **Defined** — BQ FOCUS export is system of record; dbt outputs are rebuildable |
+| **G** | Declarative deploy + IaC | **Satisfied** — OpenTofu manages all infra; startup script bootstraps VM |
+| **H** | Traces & metrics on runtime SA | **Satisfied** — Ops Agent + `cloudtrace.agent` + `monitoring.metricWriter` |
+| **I** | `infra/` OpenTofu layout | **Satisfied** — flat `infra/*.tf` per baseline |
 
 ### Verdict
 
-- **Current repo state:** `infra/` OpenTofu scaffold **exists** (APIs, IAM, secrets, VPC, AR, Cloud Run, dashboard, `scripts/deploy.sh`). Still **not production-complete** until applied to a real GCP project with seeded secrets, a pushed AR image, billing export, and invoker grants.
-- **Documented target:** Cloud Run + OpenTofu + Secret Manager + private AR + dedicated SA + IAM invoker **satisfies** A/B/E/G/H/I in design; C via custom VPC + PGA + Direct VPC egress; D N/A for v1.
-- **Agent rule:** Extend `infra/` rather than inventing click-ops. Do not regress to public unauthenticated Cloud Run, shared/default Compute SAs, secret literals, or GHCR-only production pulls.
-
-### Applicable vs not applicable (this SKU)
-
-| Baseline item | Applies? |
-|---------------|----------|
-| Cloud SQL / Redis private IP, backups, deletion protection | No (not in v1 architecture) |
-| Schema migration job before deploy | No (no app DB) |
-| Cloud Scheduler dedicated invoker SA | Optional (only if scheduled rebuild jobs are added) |
-| Custom VPC, AR, Secret Manager, Cloud Run IAM, tofu state | **Yes** |
+Documented target: e2-medium VM + OpenTofu + Secret Manager + dedicated SA + IAP SSH + nginx TLS satisfies A/B/D/E/G/H/I in design; C via custom VPC + PGA.
 
 ---
 
-## Local development (cloud-cost-only)
+## Local development (dbt + Metabase)
 
 ### Prerequisites
 
-- Go (see `go.mod`)
-- Docker (optional)
-- `gcloud` authenticated to a project with BQ export access
-- `cloud-integration.json` (local path; never commit secrets)
+- Python 3.9+ with `dbt-bigquery` (`pip install dbt-bigquery`)
+- Docker + Docker Compose
+- `gcloud` authenticated to `demogcp-terra2021` with BQ access
+- FOCUS export table populated (see Plan A)
 
-### Run API locally without Kubernetes
-
-```bash
-# Ensure KUBERNETES_PORT is unset
-unset KUBERNETES_PORT
-
-export CLOUD_COST_ENABLED=true
-export CONFIG_PATH="$(pwd)/.local-config"   # place cloud-integration.json here
-mkdir -p "${CONFIG_PATH}"
-# cp /secure/path/cloud-integration.json "${CONFIG_PATH}/"
-
-go run ./cmd/costmodel/main.go
-# API: http://127.0.0.1:9003
-```
-
-Docker equivalent:
+### Run dbt locally
 
 ```bash
-docker run --rm -p 9003:9003 \
-  -e CLOUD_COST_ENABLED=true \
-  -e CONFIG_PATH=/var/configs \
-  -v "$(pwd)/.local-config:/var/configs:ro" \
-  ghcr.io/opencost/opencost:latest
+cd dbt
+
+# Set required env vars (or export them in your shell profile)
+export DBT_PROJECT_ID=demogcp-terra2021
+export DBT_BILLING_PROJECT_ID=demogcp-terra2021
+export DBT_BILLING_DATASET=export_billing_demogcp_detailed
+export DBT_FOCUS_TABLE=gcp_billing_export_focus_v1_01E5F4_66804E_8286B7
+export DBT_OUTPUT_DATASET=finops_dbt
+
+dbt debug        # verify BigQuery connection
+dbt run          # build all models
+dbt test         # run data tests
+dbt docs generate && dbt docs serve   # browse lineage
 ```
+
+### Run Metabase locally
+
+```bash
+# From repo root
+docker compose up -d
+# Metabase: http://localhost:3000
+```
+
+On first boot, complete the setup wizard and connect to BigQuery (see `infra/examples/metabase-bigquery-setup.md`).
 
 ### Quick commands
 
 ```bash
-just test
-just test-opencost
-just build-local
+# dbt
+dbt run --select staging          # run only staging models
+dbt run --select marts            # run only mart models
+dbt run --select fct_spend_waterfall
+
+# Deploy (from infra/)
+./scripts/deploy.sh all
+./scripts/deploy.sh dbt-run
+./scripts/deploy.sh ssh
 ```
 
 ## Key Environment Variables
 
-### Cloud Cost (primary)
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CLOUD_COST_ENABLED` | `false` | Enable cloud cost ingestion |
-| `CONFIG_PATH` | `/var/configs` | Dir for `cloud-integration.json` |
-| `API_PORT` | `9003` | OpenCost API port |
-| `ADMIN_TOKEN` | (unset) | Bearer token for admin endpoints; unset → those endpoints return 503 |
-| `CLOUD_COST_REFRESH_RATE_HOURS` | `6` | Ingest cadence |
-| `CLOUD_COST_RUN_WINDOW_DAYS` | `3` | Standard lookback |
-| `CLOUD_COST_QUERY_WINDOW_DAYS` | `7` | Max days per BQ query chunk |
+| `DBT_PROJECT_ID` | (required) | GCP project for dbt output |
+| `DBT_BILLING_PROJECT_ID` | (required) | GCP project holding FOCUS export |
+| `DBT_BILLING_DATASET` | (required) | BigQuery dataset containing FOCUS export |
+| `DBT_FOCUS_TABLE` | (required) | FOCUS export table name |
+| `DBT_OUTPUT_DATASET` | `finops_dbt` | BigQuery dataset for dbt outputs |
+| `METABASE_DB_PASSWORD` | (from Secret Manager) | PostgreSQL password for Metabase metadata DB |
 
-Admin-protected endpoints:
+## Key Types (dbt mart schema)
 
-- `GET /cloudCost/rebuild`, `GET /cloudCost/repair`
-- `GET /cloud/config/export`, `GET /cloud/config/enable`, `GET /cloud/config/disable`, `GET /cloud/config/delete`
-- `POST /serviceKey`, `GET /helmValues`
-
-### Kubernetes / allocation (secondary — usually off here)
-
-Kubernetes path activates when `KUBERNETES_PORT` is set. Allocation also typically needs `PROMETHEUS_SERVER_ENDPOINT` and optionally `CLOUD_PROVIDER_API_KEY` for GCP SKU pricing. Not required for Cloud Run cloud-cost-only.
-
-## API Endpoints (cloud-cost focus)
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /cloudCost` | Cloud cost data (`window`, `aggregate`, filters) |
-| `GET /cloudCost/status` | Integration / ingest status |
-| `GET /cloudCost/view` | View helper |
-| `GET /metrics` | Prometheus metrics |
-| `GET /allocation` | K8s allocation (only if Kubernetes path enabled) |
-| `GET /assets` | K8s assets (only if Kubernetes path enabled) |
-
-## Code Conventions
-
-### Go Style
-
-- Use structured logging via `github.com/opencost/opencost/core/pkg/log`
-- Environment variables via `pkg/env` or `core/pkg/env`
-- Wrap errors with context
-
-**Before committing, always run:**
-
-```bash
-go fmt ./...
-go vet ./...
-```
-
-### Module Structure
-
-- `github.com/opencost/opencost` — Main module
-- `github.com/opencost/opencost/core` — Core shared library
-- `github.com/opencost/opencost/modules/prometheus-source` — Prometheus integration
-- `github.com/opencost/opencost/modules/collector-source` — Metrics collector
-
-### Testing
-
-- Unit tests: `*_test.go`
-- Integration tests: `INTEGRATION=true`
-- Prefer mocks for BigQuery / GCP SDK in unit tests
-
-### Logging
-
-```go
-import "github.com/opencost/opencost/core/pkg/log"
-
-log.Infof("Processing cloud cost window: %s", window)
-log.Errorf("Failed to query BigQuery: %v", err)
-log.Warnf("Missing billing export rows for window")
-log.Debugf("Detailed debug information")
-```
+| Table | Description |
+|-------|-------------|
+| `stg_focus_billing` | Staging — raw FOCUS columns with charge_date/month |
+| `int_charges` | Intermediate — Usage/Purchase/Tax charge types |
+| `int_credits` | Intermediate — ChargeType=Credit, preserves ChargeSubcategory |
+| `fct_spend_waterfall` | List → contracted → effective → billed + delta columns |
+| `fct_credit_breakdown` | Credits by credit_type/project/service/month |
+| `fct_commitment_discounts` | CUD utilisation |
+| `fct_monthly_showback` | Project net vs gross with credit attribution |
 
 ## Pull Request Guidelines
 
 1. Link related issues: `Fixes #123`, `Closes #456`
 2. Describe user-facing / breaking changes
-3. Include tests for new functionality
-4. Run `just test` before submitting
-5. Use signed commits (`Signed-off-by` required)
-
-## Key Types
-
-- `CloudCost` — Cloud service costs from billing export
-- `Window` — Time range for queries
-- `Allocation` / `Asset` — Kubernetes cost types (secondary in this fork)
+3. Run `dbt run && dbt test` before submitting
+4. Use signed commits (`Signed-off-by` required)
 
 ## Useful Links
 
-- [Architecture compliance baseline](docs/architecture-compliance.md) (this fork)
-- [OpenCost GCP configuration](https://www.opencost.io/docs/configuration/gcp/)
-- [OpenCost Docker / Kubernetesless cloud costs](https://www.opencost.io/docs/installation/docker/)
-- [OpenCost Cloud Cost API](https://www.opencost.io/docs/integrations/api/)
-- [Helm Chart](https://github.com/opencost/opencost-helm-chart) (optional GKE path)
-- [OpenCost Specification](spec/opencost-specv01.md)
-- [CNCF Slack #opencost](https://cloud-native.slack.com/archives/C03D56FPD4G)
+- [Architecture compliance baseline](docs/architecture-compliance.md)
+- [FOCUS billing standard](https://focus.finops.org/)
+- [dbt BigQuery adapter docs](https://docs.getdbt.com/docs/core/connect-data-platform/bigquery-setup)
+- [Metabase BigQuery setup](infra/examples/metabase-bigquery-setup.md)
+- [GCP FOCUS billing export docs](https://cloud.google.com/billing/docs/how-to/export-data-bigquery-tables/focus-export)
