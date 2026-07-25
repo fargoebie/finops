@@ -13,7 +13,7 @@ This document provides guidance for AI assistants working with this OpenCost-bas
 This fork’s primary goal is to run OpenCost as a **GCP Cloud Cost API**:
 
 1. Ingest **actual GCP invoice data** from BigQuery billing export
-2. Expose it via `/cloudCost*` (and optional UI/MCP later)
+2. Expose it via `/cloudCost*` and a Cloud Run FinOps SPA at `/`
 3. Deploy the service on **Cloud Run** (no Kubernetes required)
 
 Kubernetes cost allocation (`/allocation`, `/assets`, Prometheus) is **out of primary scope**. Keep upstream OpenCost conventions, but treat allocation paths as optional.
@@ -61,7 +61,8 @@ opencost/
 ├── docs/                   # Project docs (includes architecture-compliance.md)
 ├── infra/                  # OpenTofu IaC for GCP Cloud Run (cloud-cost-only)
 ├── graphify-out/           # Local knowledge graph (gitignored)
-└── ui/                     # UI components (main UI in opencost/opencost-ui)
+├── ui/                     # Upstream UI components (secondary here)
+└── ui-finops/              # PRIMARY: Cloud Run FinOps SPA ingress
 ```
 
 **Compliance baseline:** [`docs/architecture-compliance.md`](docs/architecture-compliance.md) — project-agnostic GCP architecture principles. All deploy work must satisfy those principles (see **Architecture Compliance Review** below).
@@ -251,7 +252,7 @@ Target: cloud-cost-only OpenCost on **Cloud Run**, implemented with **OpenTofu**
 Scripts default there via [`infra/scripts/env.sh`](infra/scripts/env.sh). Cloud Agent deploy auth: secret `GCP_SA_KEY_B64` (base64 of `opencost-deployer` JSON) → [`infra/scripts/auth-from-secret.sh`](infra/scripts/auth-from-secret.sh).
 
 **Live Cloud Run (cloud-cost + UI sidecar):** `https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app` (**public** via `allUsers` run.invoker; admin APIs still need `ADMIN_TOKEN`)  
-**UI (default / non-legacy):** https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app/ (`/dashboards`, `/reports`, `/settings`)  
+**UI:** https://opencost-cloudcost-lhcstnm7cq-uc.a.run.app/ (FinOps SPA home; six GCP Inform sections, no stock OpenCost nav)
 **API (via UI proxy):** `/model/cloudCost`, `/model/cloudCost/view/*`, `/model/cloudCost/status`  
 **BQ export target:** `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_resource_v1_01E5F4_66804E_8286B7`  
 **Tofu state prefix:** `tofu/opencost` on `gs://demogcp-terra2021-tofu-state` (never reuse `tofu/state`).
@@ -345,16 +346,20 @@ Data-store public-IP rules in the baseline are **N/A** (no Cloud SQL/Redis in v1
 2. Push **only** to project Artifact Registry:  
    `${REGION}-docker.pkg.dev/${PROJECT_ID}/opencost/opencost:<tag>`
 3. Cloud Run pulls from that private repo (AR reader on the runtime or Cloud Run agent SA as required).
-4. Orchestrate via `infra/scripts/deploy.sh`: build → push → update Cloud Run revision (or `tofu apply` for infra-owned service template).
+4. Orchestrate via `infra/scripts/deploy.sh`: pull/tag the API image, build `ui-finops` as the stable `opencost-ui` image, push both to AR, then update the Cloud Run revision (or `tofu apply` for infra-owned service template).
 
 ### B6. Cloud Run service shape (principle E/H)
 
-Declarative equivalent of:
+Declarative equivalent of the two-container service:
 
-- Image from private AR (pinned tag)
-- Service account = `opencost-cloudcost@…`
-- Port `9003`
-- Env (non-secret): `CLOUD_COST_ENABLED=true`, `CONFIG_PATH=/var/configs`, `API_PORT=9003`
+- `opencost-ui` ingress image from private AR (pinned tag), built from `ui-finops`
+  - Port `9090`
+  - No OpenCost UI env (`API_SERVER`, `LEGACY_MODE`, `BASE_URL`, etc.)
+  - `/healthz` startup probe
+  - Serves the FinOps SPA at `/` and proxies `/model/*` to the API sidecar
+- `opencost` API sidecar image from private AR (pinned tag)
+  - Port `9003` on localhost only
+  - Env (non-secret): `CLOUD_COST_ENABLED=true`, `CONFIG_PATH=/var/configs`, `API_PORT=9003`
 - **No** `KUBERNETES_PORT`
 - Secrets by reference:
   - volume/file: `/var/configs/cloud-integration.json` ← `opencost-cloud-integration`
@@ -391,10 +396,12 @@ curl -sS -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
 
 - [ ] `tofu plan` clean; state in versioned GCS bucket
 - [ ] Cloud Run revision healthy; image digest from **private AR**
+- [ ] FinOps SPA home returns `200`: `curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/"`
+- [ ] UI proxy status returns `Connection Successful`: `curl -sS "$BASE/model/cloudCost/status" | jq '.data[0].connectionStatus'`
 - [ ] Runtime SA is dedicated (not default compute); IAM bindings match B3
 - [ ] Secrets mounted by reference; no secret literals in service YAML / tfvars
 - [ ] Unauthenticated `curl` to service URL fails; identity-token call succeeds
-- [ ] `/cloudCost/status` connected; `/cloudCost?window=7d&aggregate=service` returns rows
+- [ ] `/model/cloudCost?window=7d&aggregate=service` returns rows through the UI proxy
 - [ ] Trace/metric roles present; basic dashboard or log-based alert exists
 - [ ] No JSON service-account key in `cloud-integration` secret (WI/ADC authorizer)
 

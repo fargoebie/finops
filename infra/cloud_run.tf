@@ -1,7 +1,7 @@
 # E/G/H. Cloud Run service — UI+API multi-container, secrets by reference, private AR, VPC egress.
 #
-# Option B: UI (nginx :9090) is the ingress container and proxies /model/* to the
-# API sidecar at http://127.0.0.1:9003 (stock UI image is HTTP-only upstream).
+# Option B: FinOps SPA (nginx :9090) is the ingress container and proxies
+# /model/* to the API sidecar at http://127.0.0.1:9003.
 
 resource "google_cloud_run_v2_service" "opencost" {
   name     = "${var.name_prefix}-cloudcost"
@@ -30,7 +30,7 @@ resource "google_cloud_run_v2_service" "opencost" {
       }
     }
 
-    # Ingress container — OpenCost UI (public URL serves SPA + /model proxy).
+    # Ingress container — FinOps SPA (public URL serves home + /model proxy).
     containers {
       name  = "opencost-ui"
       image = local.opencost_ui_image_ref
@@ -44,33 +44,6 @@ resource "google_cloud_run_v2_service" "opencost" {
           cpu    = var.cloud_run_ui_cpu
           memory = var.cloud_run_ui_memory
         }
-      }
-
-      env {
-        name  = "API_SERVER"
-        value = "127.0.0.1"
-      }
-      env {
-        name  = "API_PORT"
-        value = "9003"
-      }
-      env {
-        name  = "UI_PORT"
-        value = "9090"
-      }
-      env {
-        name  = "BASE_URL"
-        value = "/model"
-      }
-      env {
-        name  = "UI_PATH"
-        value = "/"
-      }
-      # Default React UI: / (home), /dashboards, /reports, /settings.
-      # Cloud cost data is loaded via /model/cloudCost/view/* (BASE_URL=/model).
-      env {
-        name  = "LEGACY_MODE"
-        value = "false"
       }
 
       depends_on = ["opencost"]

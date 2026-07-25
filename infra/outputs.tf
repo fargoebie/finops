@@ -19,12 +19,12 @@ output "opencost_ui_image" {
 }
 
 output "cloud_run_service_uri" {
-  description = "Cloud Run service URI (UI ingress; /cloud for Cloud Costs)."
+  description = "Cloud Run service URI (FinOps SPA ingress; use /model/cloudCost* for API)."
   value       = google_cloud_run_v2_service.opencost.uri
 }
 
 output "cloud_run_ui_url" {
-  description = "Default (non-legacy) UI home on the public service URL."
+  description = "FinOps SPA home on the public service URL."
   value       = "${google_cloud_run_v2_service.opencost.uri}/"
 }
 

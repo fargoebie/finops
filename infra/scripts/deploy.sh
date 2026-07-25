@@ -21,7 +21,6 @@ source "${SCRIPT_DIR}/env.sh"
 IMAGE_TAG="${IMAGE_TAG:-$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 SOURCE_IMAGE="${SOURCE_IMAGE:-ghcr.io/opencost/opencost:latest}"
-SOURCE_UI_IMAGE="${SOURCE_UI_IMAGE:-ghcr.io/opencost/opencost-ui:latest}"
 CLOUD_INTEGRATION_FILE="${CLOUD_INTEGRATION_FILE:-${SCRIPT_DIR}/../examples/cloud-integration.demogcp-terra2021.json}"
 ADMIN_TOKEN_FILE="${ADMIN_TOKEN_FILE:-}"
 
@@ -35,14 +34,14 @@ Usage: $(basename "$0") <command>
 Project: ${PROJECT_ID}  Region: ${REGION}  Service: ${SERVICE}
 
 Commands:
-  push-image       Pull SOURCE_IMAGE + SOURCE_UI_IMAGE, push to private AR
+  push-image       Pull SOURCE_IMAGE, build ui-finops, push to private AR
   sync-secrets     Upload cloud-integration.json and optional ADMIN_TOKEN
   deploy-revision  Point Cloud Run containers at IMAGE_TAG
   all              push-image && sync-secrets && deploy-revision
   print-env        Show resolved names
 
 Env overrides:
-  PROJECT_ID REGION NAME_PREFIX IMAGE_TAG SOURCE_IMAGE SOURCE_UI_IMAGE PLATFORM
+  PROJECT_ID REGION NAME_PREFIX IMAGE_TAG SOURCE_IMAGE PLATFORM
   CLOUD_INTEGRATION_FILE  (default: infra/examples/cloud-integration.demogcp-terra2021.json)
   ADMIN_TOKEN_FILE
 EOF
@@ -93,8 +92,7 @@ cmd_push_image() {
   docker push "${IMAGE}"
   echo "Pushed ${IMAGE}"
 
-  docker pull --platform "${PLATFORM}" "${SOURCE_UI_IMAGE}"
-  docker tag "${SOURCE_UI_IMAGE}" "${UI_IMAGE}"
+  docker build --platform "${PLATFORM}" -t "${UI_IMAGE}" "${ROOT_DIR}/ui-finops"
   docker push "${UI_IMAGE}"
   echo "Pushed ${UI_IMAGE}"
 }
