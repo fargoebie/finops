@@ -73,19 +73,17 @@ cmd_sync() {
 
 cmd_restart() {
   require_auth
+  local secret="${SECRET_MB_DB_PASS}"
+  local project="${PROJECT_ID}"
   gcloud compute ssh "${VM_NAME}" \
     --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
-    --command="$(cat <<'REMOTE'
-set -euo pipefail
-MB_DB_PASS="$(gcloud secrets versions access latest \
-  --secret="${SECRET_MB_DB_PASS}" --project="${PROJECT_ID}")"
+    --command="set -euo pipefail
+MB_DB_PASS=\"\$(gcloud secrets versions access latest --secret='${secret}' --project='${project}')\"
 export MB_DB_PASS
 cd /opt/finops
 docker compose pull --quiet
 docker compose up -d
-docker compose ps
-REMOTE
-)"
+docker compose ps"
 }
 
 cmd_dbt_run() {
