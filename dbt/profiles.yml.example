@@ -1,0 +1,13 @@
+# Copy to profiles.yml (gitignored) and fill in your project ID and dataset.
+# Authentication uses Application Default Credentials (VM service account).
+finops:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: oauth
+      project: "YOUR_GCP_PROJECT_ID"
+      dataset: dbt_staging
+      location: US
+      timeout_seconds: 300
+      threads: 4

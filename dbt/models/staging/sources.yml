@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: gcp_billing
+    description: "GCP FOCUS billing export in BigQuery."
+    database: "{{ env_var('DBT_BILLING_PROJECT_ID', env_var('DBT_PROJECT_ID', 'YOUR_PROJECT_ID')) }}"
+    schema: "{{ env_var('DBT_BILLING_DATASET', 'YOUR_BILLING_DATASET') }}"
+    tables:
+      - name: focus_export
+        identifier: "{{ env_var('DBT_FOCUS_TABLE', 'gcp_billing_export_focus_v1_XXXXXX') }}"
+        description: >
+          GCP FOCUS 1.0 billing export. Table name format:
+          gcp_billing_export_focus_v1_<BILLING_ACCOUNT_ID_NO_DASHES>.
+          Enable via GCP Console → Billing → Billing export → FOCUS export.

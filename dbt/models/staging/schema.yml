@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: stg_focus_billing
+    description: "Staging view over the GCP FOCUS billing export. Full fidelity — no rows dropped."
+    columns:
+      - name: charge_type
+        description: "FOCUS ChargeType: Usage, Purchase, Tax, Credit, Adjustment."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Usage', 'Purchase', 'Tax', 'Credit', 'Adjustment']
+      - name: billed_cost
+        description: "Amount charged to the billing account (negative for credits)."
+        tests:
+          - not_null
+      - name: project_id
+        description: "GCP project ID (FOCUS SubAccountId)."
