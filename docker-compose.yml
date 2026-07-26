@@ -32,6 +32,9 @@ services:
       MB_DB_HOST: postgres
       # Cap JVM heap — leave ~512 MB for OS + dbt on e2-medium (4 GB total).
       JAVA_OPTS: "-Xmx1536m -Xms512m"
+      GOOGLE_APPLICATION_CREDENTIALS: /app/metabase-bq-key.json
+    volumes:
+      - /opt/finops/metabase-bq-key.json:/app/metabase-bq-key.json:ro
     depends_on:
       postgres:
         condition: service_healthy

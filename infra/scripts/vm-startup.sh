@@ -42,6 +42,13 @@ fi
 # ── App directory ────────────────────────────────────────────────────────────
 mkdir -p /opt/finops/nginx /opt/finops/dbt
 
+# ── Metabase BigQuery SA key ────────────────────────────────────────────────
+gcloud secrets versions access latest \
+  --secret="finops-metabase-bq-key" \
+  --project="gcp-coe-492507" \
+  > /opt/finops/metabase-bq-key.json
+chmod 600 /opt/finops/metabase-bq-key.json
+
 # ── dbt daily cron ───────────────────────────────────────────────────────────
 CRON_LINE="0 6 * * * root set -a && source /opt/finops/dbt/.env && set +a && cd /opt/finops/dbt && /usr/local/bin/dbt deps --profiles-dir . && /usr/local/bin/dbt run --profiles-dir . >> /var/log/dbt-cron.log 2>&1"
 if ! grep -qF "dbt run" /etc/cron.d/finops-dbt 2>/dev/null; then

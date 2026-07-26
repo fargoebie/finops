@@ -107,6 +107,8 @@ cmd_restart() {
     --command="set -euo pipefail
 MB_DB_PASS=\"\$(gcloud secrets versions access latest --secret='${secret}' --project='${project}')\"
 export MB_DB_PASS
+gcloud secrets versions access latest --secret='finops-metabase-bq-key' --project='${project}' > /opt/finops/metabase-bq-key.json
+chmod 600 /opt/finops/metabase-bq-key.json
 cd /opt/finops
 docker compose pull --quiet
 docker compose up -d
