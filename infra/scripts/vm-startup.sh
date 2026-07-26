@@ -43,7 +43,7 @@ fi
 mkdir -p /opt/finops/nginx /opt/finops/dbt
 
 # ── dbt daily cron ───────────────────────────────────────────────────────────
-CRON_LINE="0 6 * * * root cd /opt/finops/dbt && /usr/local/bin/dbt run --profiles-dir . >> /var/log/dbt.log 2>&1"
+CRON_LINE="0 6 * * * root set -a && source /opt/finops/dbt/.env && set +a && cd /opt/finops/dbt && /usr/local/bin/dbt deps --profiles-dir . && /usr/local/bin/dbt run --profiles-dir . >> /var/log/dbt-cron.log 2>&1"
 if ! grep -qF "dbt run" /etc/cron.d/finops-dbt 2>/dev/null; then
   echo "${CRON_LINE}" > /etc/cron.d/finops-dbt
   chmod 0644 /etc/cron.d/finops-dbt

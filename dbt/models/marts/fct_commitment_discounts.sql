@@ -1,23 +1,20 @@
--- Committed Use Discount (CUD) utilisation and coverage.
--- Covers both spend-based (Spend) and resource-based (Usage) CUDs.
--- commitment_discount_status = 'Used' | 'Unused' shows utilisation.
+-- CUD credits by project/service/month, sourced from x_Credits UNNEST.
+-- Covers both resource-based (COMMITTED_USAGE_DISCOUNT) and
+-- spend-based (COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE) CUDs.
 
 select
     project_id,
     project_name,
     service_name,
     charge_month,
-    commitment_discount_id,
-    commitment_discount_name,
-    commitment_discount_type,
-    commitment_discount_category,
-    commitment_discount_status,
+    credit_type                     as commitment_discount_type,
     billing_currency,
-    count(*)                            as line_count,
-    sum(list_cost)                      as list_cost,
-    sum(contracted_cost)                as contracted_cost,
-    sum(billed_cost)                    as billed_cost
+    count(*)                        as line_count,
+    sum(credit_amount)              as total_cud_credit
 
-from {{ ref('int_charges') }}
-where commitment_discount_id is not null
-group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+from {{ ref('int_credits') }}
+where credit_type in (
+    'COMMITTED_USAGE_DISCOUNT',
+    'COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE'
+)
+group by 1, 2, 3, 4, 5, 6

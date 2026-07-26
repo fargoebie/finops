@@ -1,33 +1,28 @@
--- Credit rows only — preserves the full ChargeSubcategory label.
+-- One row per credit per source billing row.
+-- Credits are embedded in Usage rows as x_Credits (REPEATED RECORD).
+-- UNNEST expands each credit record into its own row.
+-- credit_amount is negative (reduces cost) per FOCUS convention.
 --
--- GCP credit subcategories include (non-exhaustive):
---   'Enterprise Discount Program'
---   'Committed Use Discount: Spend'
---   'Committed Use Discount: Usage'
---   'Sustained Use Discount'
---   'Promotion'
---   'Reseller Discount'
---   'Free Tier'
---
--- credit_amount is always negative (reduces billed cost).
+-- GCP x_Credits.Type tokens:
+--   COMMITTED_USAGE_DISCOUNT            resource-based CUD
+--   COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE spend-based CUD
+--   SUSTAINED_USAGE_DISCOUNT            SUD
+--   FREE_TIER                           free tier
+--   PROMOTION                           promotional credit
 
 select
     billing_account_id,
     project_id,
     project_name,
     service_name,
-    service_category,
     region_id,
     charge_date,
     charge_month,
-    charge_subcategory                  as credit_type,
-    charge_description,
     sku_id,
     billing_currency,
-    billed_cost                         as credit_amount,
-    commitment_discount_id,
-    commitment_discount_name,
-    commitment_discount_type,
-    commitment_discount_category
-from {{ ref('stg_focus_billing') }}
-where charge_type = 'Credit'
+    credit.Type       as credit_type,
+    credit.Name       as credit_name,
+    credit.FullName   as credit_full_name,
+    credit.Id         as credit_id,
+    credit.Amount     as credit_amount
+from {{ ref('stg_focus_billing') }}, UNNEST(x_credits) AS credit

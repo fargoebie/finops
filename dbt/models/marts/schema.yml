@@ -22,9 +22,9 @@ models:
         tests: [not_null]
 
   - name: fct_commitment_discounts
-    description: "CUD utilisation and coverage by commitment/project/month."
+    description: "CUD credits by project/service/month from x_Credits UNNEST."
     columns:
-      - name: commitment_discount_id
+      - name: commitment_discount_type
         tests: [not_null]
 
   - name: fct_monthly_showback

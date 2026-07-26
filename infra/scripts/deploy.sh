@@ -33,17 +33,19 @@ EOF
 }
 
 require_auth() {
-  if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" || ! -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]]; then
-    if [[ -n "${GCP_SA_KEY_B64:-}" ]]; then
-      echo "GOOGLE_APPLICATION_CREDENTIALS missing; running auth-from-secret.sh"
-      "${SCRIPT_DIR}/auth-from-secret.sh"
-      source "${SCRIPT_DIR}/env.sh"
-    else
-      echo "No credentials. Set GCP_SA_KEY_B64 or run ./auth-from-secret.sh" >&2
-      exit 1
-    fi
-  fi
   command -v gcloud >/dev/null 2>&1 || { echo "gcloud required" >&2; exit 1; }
+  if [[ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" && -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]]; then
+    : # explicit key file — use as-is
+  elif [[ -n "${GCP_SA_KEY_B64:-}" ]]; then
+    echo "GOOGLE_APPLICATION_CREDENTIALS missing; running auth-from-secret.sh"
+    "${SCRIPT_DIR}/auth-from-secret.sh"
+    source "${SCRIPT_DIR}/env.sh"
+  elif [[ -f "${HOME}/.config/gcloud/application_default_credentials.json" ]]; then
+    : # ADC credentials file present — gcloud commands will use it automatically
+  else
+    echo "No credentials. Run: gcloud auth application-default login" >&2
+    exit 1
+  fi
   gcloud config set project "${PROJECT_ID}" --quiet
 }
 
@@ -75,10 +77,13 @@ cmd_sync() {
 
 cmd_profiles() {
   require_auth
-  local project="${PROJECT_ID}"
+  local out_project="${DBT_OUTPUT_PROJECT_ID:-${PROJECT_ID}}"
   gcloud compute ssh "${VM_NAME}" \
     --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
-    --command="mkdir -p /opt/finops/dbt && printf 'finops:\n  target: prod\n  outputs:\n    prod:\n      type: bigquery\n      method: oauth\n      project: ${project}\n      dataset: dbt_staging\n      location: US\n      timeout_seconds: 300\n      threads: 4\n' > /opt/finops/dbt/profiles.yml && echo 'profiles.yml written'"
+    --command="mkdir -p /opt/finops/dbt && \
+printf 'finops:\n  target: prod\n  outputs:\n    prod:\n      type: bigquery\n      method: oauth\n      project: ${out_project}\n      dataset: finops_dbt\n      location: asia-southeast2\n      timeout_seconds: 300\n      threads: 4\n' > /opt/finops/dbt/profiles.yml && \
+printf 'DBT_BILLING_PROJECT_ID=terra-coe-finops\nDBT_BILLING_DATASET=gcp_billing_immutable_01A09A_A37EA6_F0AC6C_asia_southeast2\nDBT_FOCUS_TABLE=gcp_billing_export_focus_01A09A_A37EA6_F0AC6C\nDBT_OUTPUT_DATASET=finops_dbt\nDBT_OUTPUT_PROJECT_ID=${out_project}\n' > /opt/finops/dbt/.env && \
+echo 'profiles.yml and .env written'"
 }
 
 cmd_nginx_setup() {
@@ -86,10 +91,10 @@ cmd_nginx_setup() {
   gcloud compute ssh "${VM_NAME}" \
     --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
     --command="set -euo pipefail
-cp /opt/finops/nginx/metabase.conf /etc/nginx/sites-available/metabase
-ln -sf /etc/nginx/sites-available/metabase /etc/nginx/sites-enabled/metabase
-rm -f /etc/nginx/sites-enabled/default
-nginx -t && systemctl reload nginx
+sudo cp /opt/finops/nginx/metabase.conf /etc/nginx/sites-available/metabase
+sudo ln -sf /etc/nginx/sites-available/metabase /etc/nginx/sites-enabled/metabase
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t && sudo systemctl reload nginx
 echo 'nginx configured — run certbot manually: certbot --nginx -d YOUR_DOMAIN'"
 }
 

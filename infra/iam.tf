@@ -16,14 +16,20 @@ resource "google_project_iam_member" "finops_vm_bq_data_viewer" {
 }
 
 resource "google_project_iam_member" "finops_vm_bq_job_user" {
-  project = local.billing_project
+  project = var.project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.finops_vm.email}"
 }
 
 resource "google_project_iam_member" "finops_vm_bq_user" {
-  project = local.billing_project
+  project = var.project_id
   role    = "roles/bigquery.user"
+  member  = "serviceAccount:${google_service_account.finops_vm.email}"
+}
+
+resource "google_project_iam_member" "finops_vm_bq_data_editor" {
+  project = var.project_id
+  role    = "roles/bigquery.dataEditor"
   member  = "serviceAccount:${google_service_account.finops_vm.email}"
 }
 

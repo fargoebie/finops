@@ -6,11 +6,9 @@ select
     project_id,
     project_name,
     service_name,
-    service_category,
     region_id,
     charge_date,
     charge_month,
-    charge_type,
     charge_category,
     charge_description,
     sku_id,
@@ -22,11 +20,6 @@ select
     pricing_quantity,
     pricing_unit,
     consumed_quantity,
-    consumed_unit,
-    commitment_discount_id,
-    commitment_discount_name,
-    commitment_discount_type,
-    commitment_discount_category,
-    commitment_discount_status
+    consumed_unit
 from {{ ref('stg_focus_billing') }}
-where charge_type in ('Usage', 'Purchase', 'Tax')
+where charge_category in ('Usage', 'Purchase', 'Tax')

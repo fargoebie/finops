@@ -19,24 +19,24 @@ credits_pivot as (
     select
         project_id,
         charge_month,
-        sum(credit_amount)                                                          as total_credits,
-        sum(case when credit_type = 'Enterprise Discount Program'
-                 then credit_amount else 0 end)                                     as edp_credits,
-        sum(case when credit_type like 'Committed Use Discount%'
-                 then credit_amount else 0 end)                                     as cud_credits,
-        sum(case when credit_type = 'Sustained Use Discount'
-                 then credit_amount else 0 end)                                     as sud_credits,
-        sum(case when credit_type = 'Promotion'
-                 then credit_amount else 0 end)                                     as promotional_credits,
-        sum(case when credit_type = 'Reseller Discount'
-                 then credit_amount else 0 end)                                     as reseller_credits,
+        sum(credit_amount)                                                              as total_credits,
+        sum(case when credit_type in (
+                     'COMMITTED_USAGE_DISCOUNT',
+                     'COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE'
+                 ) then credit_amount else 0 end)                                       as cud_credits,
+        sum(case when credit_type = 'SUSTAINED_USAGE_DISCOUNT'
+                 then credit_amount else 0 end)                                         as sud_credits,
+        sum(case when credit_type = 'PROMOTION'
+                 then credit_amount else 0 end)                                         as promotional_credits,
+        sum(case when credit_type = 'FREE_TIER'
+                 then credit_amount else 0 end)                                         as free_tier_credits,
         sum(case when credit_type not in (
-                     'Enterprise Discount Program',
-                     'Sustained Use Discount',
-                     'Promotion',
-                     'Reseller Discount'
-                 ) and credit_type not like 'Committed Use Discount%'
-                 then credit_amount else 0 end)                                     as other_credits
+                     'COMMITTED_USAGE_DISCOUNT',
+                     'COMMITTED_USAGE_DISCOUNT_DOLLAR_BASE',
+                     'SUSTAINED_USAGE_DISCOUNT',
+                     'PROMOTION',
+                     'FREE_TIER'
+                 ) then credit_amount else 0 end)                                       as other_credits
     from {{ ref('int_credits') }}
     group by 1, 2
 )
@@ -51,13 +51,12 @@ select
     c.effective_cost,
     c.net_cost,
     coalesce(cr.total_credits, 0)           as total_credits,
-    coalesce(cr.edp_credits, 0)             as edp_credits,
     coalesce(cr.cud_credits, 0)             as cud_credits,
     coalesce(cr.sud_credits, 0)             as sud_credits,
     coalesce(cr.promotional_credits, 0)     as promotional_credits,
-    coalesce(cr.reseller_credits, 0)        as reseller_credits,
+    coalesce(cr.free_tier_credits, 0)       as free_tier_credits,
     coalesce(cr.other_credits, 0)           as other_credits,
-    c.gross_cost - c.contracted_cost        as edp_savings
+    c.gross_cost - c.contracted_cost        as negotiated_savings
 from charges c
 left join credits_pivot cr
     on  c.project_id   = cr.project_id

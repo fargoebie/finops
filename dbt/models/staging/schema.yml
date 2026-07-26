@@ -4,8 +4,8 @@ models:
   - name: stg_focus_billing
     description: "Staging view over the GCP FOCUS billing export. Full fidelity — no rows dropped."
     columns:
-      - name: charge_type
-        description: "FOCUS ChargeType: Usage, Purchase, Tax, Credit, Adjustment."
+      - name: charge_category
+        description: "FOCUS ChargeCategory: Usage, Purchase, Tax, Credit, Adjustment."
         tests:
           - not_null
           - accepted_values:

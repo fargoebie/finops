@@ -5,7 +5,6 @@ select
     project_id,
     project_name,
     service_name,
-    service_category,
     region_id,
     charge_month,
     credit_type,
@@ -14,4 +13,4 @@ select
     sum(credit_amount)                  as total_credit_amount
 
 from {{ ref('int_credits') }}
-group by 1, 2, 3, 4, 5, 6, 7, 8
+group by 1, 2, 3, 4, 5, 6, 7
