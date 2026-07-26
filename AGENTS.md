@@ -54,7 +54,7 @@ finops/
 │   ├── scripts/
 │   │   ├── deploy.sh       # sync / restart / dbt-run / sync-secrets / ssh
 │   │   ├── vm-startup.sh   # Docker, dbt-bigquery, nginx, ops agent, dbt cron
-│   │   └── env.sh          # Shared defaults (PROJECT_ID=demogcp-terra2021)
+│   │   └── env.sh          # Shared defaults (PROJECT_ID=gcp-coe-492507)
 │   └── examples/
 │       └── metabase-bigquery-setup.md
 ├── docker-compose.yml      # Metabase + PostgreSQL (port 127.0.0.1:3000)
@@ -88,9 +88,9 @@ Metabase (Docker, port 3000)
 e2-medium VM  finops-vm  (Cloud Run / Kubernetes: not used)
 ```
 
-**Active project:** `demogcp-terra2021`  
-**BQ export table:** `demogcp-terra2021.export_billing_demogcp_detailed.gcp_billing_export_focus_v1_01E5F4_66804E_8286B7`  
-**Tofu state prefix:** `tofu/finops` on `gs://demogcp-terra2021-tofu-state`
+**Active project:** `gcp-coe-492507`  
+**BQ export table:** `terra-coe-finops.gcp_billing_immutable_01A09A_A37EA6_F0AC6C_asia_southeast2.gcp_billing_export_focus_01A09A_A37EA6_F0AC6C`  
+**Tofu state prefix:** `tofu/finops` on `gs://gcp-coe-492507-tofu-state`
 
 ---
 
@@ -132,10 +132,10 @@ done
 
 | Variable | Example |
 |----------|---------|
-| `DBT_PROJECT_ID` | `demogcp-terra2021` |
-| `DBT_BILLING_PROJECT_ID` | `demogcp-terra2021` |
-| `DBT_BILLING_DATASET` | `export_billing_demogcp_detailed` |
-| `DBT_FOCUS_TABLE` | `gcp_billing_export_focus_v1_01E5F4_66804E_8286B7` |
+| `DBT_PROJECT_ID` | `gcp-coe-492507` |
+| `DBT_BILLING_PROJECT_ID` | `terra-coe-finops` |
+| `DBT_BILLING_DATASET` | `gcp_billing_immutable_01A09A_A37EA6_F0AC6C_asia_southeast2` |
+| `DBT_FOCUS_TABLE` | `gcp_billing_export_focus_01A09A_A37EA6_F0AC6C` |
 | `DBT_OUTPUT_DATASET` | `finops_dbt` |
 
 ### A4. Common pitfalls
@@ -152,9 +152,9 @@ done
 
 Target: dbt + Metabase on **e2-medium VM**, implemented with **OpenTofu** under `infra/` per [`docs/architecture-compliance.md`](docs/architecture-compliance.md).
 
-**Active project:** `demogcp-terra2021`  
+**Active project:** `gcp-coe-492507`  
 Scripts default there via [`infra/scripts/env.sh`](infra/scripts/env.sh).  
-**Tofu state prefix:** `tofu/finops` on `gs://demogcp-terra2021-tofu-state`.
+**Tofu state prefix:** `tofu/finops` on `gs://gcp-coe-492507-tofu-state`.
 
 ### B0. Compliance constraints (non-negotiable)
 
@@ -173,8 +173,8 @@ Scripts default there via [`infra/scripts/env.sh`](infra/scripts/env.sh).
 ### B1. Bootstrap (out-of-band, once)
 
 ```bash
-export PROJECT_ID="demogcp-terra2021"
-export REGION="us-central1"
+export PROJECT_ID="gcp-coe-492507"
+export REGION="asia-southeast2"
 export STATE_BUCKET="${PROJECT_ID}-tofu-state"
 
 gcloud config set project "${PROJECT_ID}"
@@ -320,7 +320,7 @@ Documented target: e2-medium VM + OpenTofu + Secret Manager + dedicated SA + IAP
 
 - Python 3.9+ with `dbt-bigquery` (`pip install dbt-bigquery`)
 - Docker + Docker Compose
-- `gcloud` authenticated to `demogcp-terra2021` with BQ access
+- `gcloud` authenticated to `gcp-coe-492507` with access to `terra-coe-finops`
 - FOCUS export table populated (see Plan A)
 
 ### Run dbt locally
@@ -329,10 +329,10 @@ Documented target: e2-medium VM + OpenTofu + Secret Manager + dedicated SA + IAP
 cd dbt
 
 # Set required env vars (or export them in your shell profile)
-export DBT_PROJECT_ID=demogcp-terra2021
-export DBT_BILLING_PROJECT_ID=demogcp-terra2021
-export DBT_BILLING_DATASET=export_billing_demogcp_detailed
-export DBT_FOCUS_TABLE=gcp_billing_export_focus_v1_01E5F4_66804E_8286B7
+export DBT_PROJECT_ID=gcp-coe-492507
+export DBT_BILLING_PROJECT_ID=terra-coe-finops
+export DBT_BILLING_DATASET=gcp_billing_immutable_01A09A_A37EA6_F0AC6C_asia_southeast2
+export DBT_FOCUS_TABLE=gcp_billing_export_focus_01A09A_A37EA6_F0AC6C
 export DBT_OUTPUT_DATASET=finops_dbt
 
 dbt debug        # verify BigQuery connection
