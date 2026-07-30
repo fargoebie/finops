@@ -3,8 +3,8 @@
 
 with charges as (
     select
-        project_id,
-        project_name,
+        coalesce(project_id, '(unattributed)')      as project_id,
+        coalesce(project_name, '(unattributed)')    as project_name,
         charge_month,
         billing_currency,
         sum(list_cost)          as gross_cost,
@@ -17,7 +17,7 @@ with charges as (
 
 credits_pivot as (
     select
-        project_id,
+        coalesce(project_id, '(unattributed)')      as project_id,
         charge_month,
         sum(credit_amount)                                                              as total_credits,
         sum(case when credit_type in (

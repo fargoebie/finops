@@ -2,8 +2,8 @@
 -- Primary Metabase source for "what credits am I getting and why?" questions.
 
 select
-    project_id,
-    project_name,
+    coalesce(project_id, '(unattributed)')      as project_id,
+    coalesce(project_name, '(unattributed)')    as project_name,
     service_name,
     region_id,
     charge_month,

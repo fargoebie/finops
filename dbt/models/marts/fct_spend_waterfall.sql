@@ -11,8 +11,8 @@
 -- total_discount     = list_cost - billed_cost
 
 select
-    project_id,
-    project_name,
+    coalesce(project_id, '(unattributed)')          as project_id,
+    coalesce(project_name, '(unattributed)')        as project_name,
     service_name,
     region_id,
     sku_id,
