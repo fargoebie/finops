@@ -30,3 +30,6 @@ graphify-out/
 # Brainstorming companion
 .superpowers/
 tmp/
+
+# Python / dbt local dev
+.venv/
