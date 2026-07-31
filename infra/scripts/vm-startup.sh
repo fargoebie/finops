@@ -31,6 +31,23 @@ if ! command -v nginx >/dev/null 2>&1; then
   systemctl enable nginx
 fi
 
+# Self-signed cert so TLS is up by default (upgrade later: certbot --nginx -d DOMAIN).
+NGINX_CRT="/etc/nginx/ssl/metabase-selfsigned.crt"
+NGINX_KEY="/etc/nginx/ssl/metabase-selfsigned.key"
+if [[ ! -f "${NGINX_CRT}" || ! -f "${NGINX_KEY}" ]]; then
+  mkdir -p /etc/nginx/ssl
+  EXT_IP="$(curl -s -H 'Metadata-Flavor: Google' \
+    http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip || true)"
+  SAN="DNS:finops-vm"
+  [[ -n "${EXT_IP}" ]] && SAN="IP:${EXT_IP},${SAN}"
+  openssl req -x509 -nodes -newkey rsa:2048 -days 825 \
+    -keyout "${NGINX_KEY}" -out "${NGINX_CRT}" \
+    -subj "/CN=finops-metabase" -addext "subjectAltName=${SAN}"
+  chmod 600 "${NGINX_KEY}"
+fi
+# The site config itself is installed by deploy.sh nginx-setup, which copies
+# nginx/metabase.conf (referencing the cert above) and reloads nginx.
+
 # ── dbt-bigquery ────────────────────────────────────────────────────────────
 if [[ ! -x /opt/dbt-venv/bin/dbt ]]; then
   apt-get install -y -qq python3-pip python3-venv
