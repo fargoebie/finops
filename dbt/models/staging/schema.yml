@@ -16,3 +16,23 @@ models:
           - not_null
       - name: project_id
         description: "GCP project ID (FOCUS SubAccountId)."
+      - name: x_project_name
+        description: "GCP project display name from x_Project.Name."
+      - name: x_org_ancestor_name
+        description: "Organisation display name from x_Project.Ancestors (org-level entry)."
+      - name: x_org_ancestor_resource_name
+        description: "Organisation resource name (e.g. organizations/12345) from x_Project.Ancestors."
+      - name: platform
+        description: "GMP if ServiceName is a Google Maps Platform service, else GCP."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['GCP', 'GMP']
+      - name: list_cost_usd
+        description: "list_cost converted to USD via row-level x_CurrencyConversionRate."
+      - name: contracted_cost_usd
+        description: "contracted_cost converted to USD via row-level x_CurrencyConversionRate."
+      - name: effective_cost_usd
+        description: "effective_cost converted to USD via row-level x_CurrencyConversionRate."
+      - name: billed_cost_usd
+        description: "billed_cost converted to USD via row-level x_CurrencyConversionRate."

@@ -37,18 +37,26 @@ A GCP-native FinOps analytics stack built on the FOCUS billing standard:
 - **Deploy target:** e2-medium VM (`finops-vm`) on GCP, managed with OpenTofu in `infra/`
 - **Auth:** VM service account (`finops-vm@...`) with BigQuery read + Secret Manager access via ADC; IAP SSH only
 
+### Reseller / multi-customer model
+
+The FOCUS export is a **multi-customer reseller export**: it contains ~108 billing accounts with `BillingAccountType` of either `Resold` (107 customer accounts) or `Reseller` (1 — Terralogiq itself, a GCP + GMP partner). Customer identity is resolved in `int_customer_map` by joining `dbt/seeds/customer_accounts.csv` (explicit overrides) with org-ancestry from `x_Project.Ancestors`; unrecognised accounts fall back to `(unmapped)`. A `platform` column (`GCP` vs `GMP`, derived from `ServiceName`) flows from staging through intermediates into all mart tables. To onboard a new customer, add a row to `dbt/seeds/customer_accounts.csv` then run `dbt seed && dbt run`.
+
 ## Repository Structure
 
 ```
 finops/
 ├── dbt/                    # PRIMARY: dbt FOCUS billing models
 │   ├── models/
-│   │   ├── staging/        # stg_focus_billing — raw FOCUS columns
-│   │   ├── intermediate/   # int_charges, int_credits
+│   │   ├── staging/        # stg_focus_billing — raw FOCUS columns + platform
+│   │   ├── intermediate/   # int_charges, int_credits, int_customer_map
 │   │   └── marts/          # fct_spend_waterfall, fct_credit_breakdown,
-│   │                       #   fct_commitment_discounts, fct_monthly_showback
+│   │                       #   fct_commitment_discounts, fct_monthly_showback,
+│   │                       #   fct_customer_monthly, fct_customer_service_month
+│   ├── seeds/              # customer_accounts.csv — billing_account_id → customer mapping
+│   ├── tests/              # assert_no_unmapped_resold_accounts.sql (severity warn)
 │   ├── profiles.yml        # BigQuery ADC profile (env-var driven)
 │   └── dbt_project.yml
+├── metabase/               # build_dashboards.py — Terralogiq BOD dashboard builder
 ├── infra/                  # PRIMARY: OpenTofu IaC — VM, VPC, IAM, secrets
 │   ├── *.tf                # Flat layout: vm.tf, vpc.tf, iam.tf, secrets.tf, …
 │   ├── scripts/
@@ -59,6 +67,7 @@ finops/
 │       └── metabase-bigquery-setup.md
 ├── docker-compose.yml      # Metabase + PostgreSQL (port 127.0.0.1:3000)
 ├── nginx/                  # HTTP→HTTPS redirect, TLS proxy to Metabase
+├── ROADMAP.md              # Deferred features and future work
 └── docs/                   # architecture-compliance.md baseline
 ```
 
@@ -79,6 +88,7 @@ dbt Core  (dbt/models/)
   int_charges / int_credits
   fct_spend_waterfall / fct_credit_breakdown
   fct_commitment_discounts / fct_monthly_showback
+  fct_customer_monthly / fct_customer_service_month
         │  (BigQuery views/tables in finops_dbt dataset)
         ▼
 Metabase (Docker, port 3000)
@@ -276,7 +286,7 @@ tofu apply
 - [ ] `tofu plan` clean; state in versioned GCS bucket
 - [ ] VM healthy; Metabase accessible at `https://YOUR_DOMAIN`
 - [ ] dbt run succeeds: `./scripts/deploy.sh dbt-run`
-- [ ] All four mart tables present in `finops_dbt` BigQuery dataset
+- [ ] All six mart tables present in `finops_dbt` BigQuery dataset
 - [ ] Metabase connected to BigQuery; mart tables visible in Admin → Databases
 - [ ] Runtime SA is dedicated (not default Compute); IAM bindings match B3
 - [ ] Secrets mounted by reference; no secret literals in tfvars
@@ -383,10 +393,13 @@ dbt run --select fct_spend_waterfall
 | `stg_focus_billing` | Staging — raw FOCUS columns with charge_date/month |
 | `int_charges` | Intermediate — Usage/Purchase/Tax charge types |
 | `int_credits` | Intermediate — ChargeType=Credit, preserves ChargeSubcategory |
+| `int_customer_map` | Intermediate — resolves billing_account_id → customer via seed + org-ancestry |
 | `fct_spend_waterfall` | List → contracted → effective → billed + delta columns |
 | `fct_credit_breakdown` | Credits by credit_type/project/service/month |
 | `fct_commitment_discounts` | CUD utilisation |
 | `fct_monthly_showback` | Project net vs gross with credit attribution |
+| `fct_customer_monthly` | Customer × platform × month; IDR + USD; credit splits; MoM delta |
+| `fct_customer_service_month` | Customer × platform × service × month; service-level spend trends |
 
 ## Pull Request Guidelines
 

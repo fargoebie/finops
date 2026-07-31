@@ -15,6 +15,16 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+seeds:
+  finops:
+    customer_accounts:
+      +schema: finops_dbt
+      +column_types:
+        billing_account_id: string
+        customer_name: string
+        customer_id: string
+        notes: string
+
 models:
   finops:
     staging:

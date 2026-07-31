@@ -36,3 +36,33 @@ models:
         tests: [not_null]
       - name: net_cost
         tests: [not_null]
+
+  - name: fct_customer_monthly
+    description: "Customer × platform × month BOD mart. Primary source for board dashboards."
+    columns:
+      - name: customer_name
+        tests: [not_null]
+      - name: platform
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['GCP', 'GMP']
+      - name: charge_month
+        tests: [not_null]
+      - name: billing_account_id
+        tests: [not_null]
+
+  - name: fct_customer_service_month
+    description: "Customer × platform × service × month service-trend mart."
+    columns:
+      - name: customer_name
+        tests: [not_null]
+      - name: platform
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['GCP', 'GMP']
+      - name: charge_month
+        tests: [not_null]
+      - name: service_name
+        tests: [not_null]

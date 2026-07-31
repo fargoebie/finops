@@ -15,6 +15,7 @@ select
     project_id,
     project_name,
     service_name,
+    platform,
     region_id,
     charge_date,
     charge_month,

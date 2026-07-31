@@ -15,10 +15,24 @@ select
     -- x_Project fields
     x_Project.Id                                             as x_project_id,
     x_Project.Number                                         as project_number,
+    x_Project.Name                                           as x_project_name,
+    (SELECT a.DisplayName FROM UNNEST(x_Project.Ancestors) a
+      WHERE a.ResourceName LIKE 'organizations/%' LIMIT 1)   as x_org_ancestor_name,
+    (SELECT a.ResourceName FROM UNNEST(x_Project.Ancestors) a
+      WHERE a.ResourceName LIKE 'organizations/%' LIMIT 1)   as x_org_ancestor_resource_name,
 
     ProviderName                                             as provider_name,
     PublisherName                                            as publisher_name,
     ServiceName                                              as service_name,
+
+    -- Platform: GMP if ServiceName is a known Maps/Places/... service, else GCP
+    CASE WHEN ServiceName IN (
+      'Maps API','Places API','Places API (New)','Places Aggregate API','Geocoding API',
+      'Directions API','Google Maps Platform - Routes','Route Optimization API',
+      'Maps Static API','Maps Elevation API','Google Maps Tile API',
+      'Google Maps Platform Weather Service','Street View Static API'
+    ) THEN 'GMP' ELSE 'GCP' END                              as platform,
+
     RegionId                                                 as region_id,
     RegionName                                               as region_name,
     AvailabilityZone                                         as availability_zone,
@@ -52,6 +66,12 @@ select
     COALESCE(ContractedCost, 0)                              as contracted_cost,
     COALESCE(EffectiveCost, 0)                               as effective_cost,
     COALESCE(BilledCost, 0)                                  as billed_cost,
+
+    -- USD equivalents — derived ROW-LEVEL (no native USD column; all costs are IDR)
+    SAFE_DIVIDE(COALESCE(ListCost,0),       NULLIF(x_CurrencyConversionRate,0)) as list_cost_usd,
+    SAFE_DIVIDE(COALESCE(ContractedCost,0), NULLIF(x_CurrencyConversionRate,0)) as contracted_cost_usd,
+    SAFE_DIVIDE(COALESCE(EffectiveCost,0),  NULLIF(x_CurrencyConversionRate,0)) as effective_cost_usd,
+    SAFE_DIVIDE(COALESCE(BilledCost,0),     NULLIF(x_CurrencyConversionRate,0)) as billed_cost_usd,
 
     -- Pricing-currency equivalents
     COALESCE(PricingCurrencyContractedUnitPrice, 0)          as pricing_currency_contracted_unit_price,
