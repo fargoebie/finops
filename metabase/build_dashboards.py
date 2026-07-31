@@ -61,6 +61,21 @@ def pct_col(col):
         "decimals": 1,
     }}
 
+def disc_pct_col(col):
+    """SQL already outputs value*100 (e.g. 20.9); render as decimal + % suffix, no second ×100."""
+    _titles = {
+        "discount_pct": "Discount %",
+        "disc_plus_credits_pct": "Disc + Credits %",
+    }
+    entry = {
+        "number_style": "decimal",
+        "decimals": 1,
+        "suffix": "%",
+    }
+    if col in _titles:
+        entry["column_title"] = _titles[col]
+    return {'["name","%s"]' % col: entry}
+
 def scalar_idr_vs(col):
     return {"column_settings": idr_col(col)}
 
@@ -75,12 +90,14 @@ def bar_vs(dim, metric, currency=True, stacked=False):
         vs["stackable.stack_type"] = "stacked"
     return vs
 
-def table_vs(money_cols=None, pct_cols=None):
+def table_vs(money_cols=None, pct_cols=None, disc_pct_cols=None):
     cs = {}
     for c in (money_cols or []):
         cs.update(idr_col(c))
     for c in (pct_cols or []):
         cs.update(pct_col(c))
+    for c in (disc_pct_cols or []):
+        cs.update(disc_pct_col(c))
     return {"column_settings": cs}
 
 # ---------------------------------------------------------------------------
@@ -390,7 +407,8 @@ d2_specs = [
         "name": "Customer Leaderboard Table",
         "sql": ("SELECT customer_name, platform,\n"
                 "  %s,\n"
-                "  ROUND(AVG(effective_discount_pct) * 100, 2) AS eff_disc_pct,\n"
+                "  ROUND((1 - SAFE_DIVIDE(SUM(contracted_cost_idr), NULLIF(SUM(gross_cost_idr), 0))) * 100, 1) AS discount_pct,\n"
+                "  ROUND((1 - SAFE_DIVIDE(SUM(net_cost_idr), NULLIF(SUM(gross_cost_idr), 0))) * 100, 1) AS disc_plus_credits_pct,\n"
                 "  SUM(mom_delta_idr) AS mom_delta_idr\n"
                 "FROM %s\n"
                 "WHERE %s\n"
@@ -400,7 +418,7 @@ d2_specs = [
                     FCM, RESOLD),
         "tags": CURRENCY_TAG,
         "display": "table",
-        "vs": table_vs(money_cols=["amount", "mom_delta_idr"], pct_cols=["eff_disc_pct"]),
+        "vs": table_vs(money_cols=["amount", "mom_delta_idr"], disc_pct_cols=["discount_pct", "disc_plus_credits_pct"]),
         "w": 24, "h": 10,
         "is_money": True,
     },
@@ -532,18 +550,17 @@ print("\n--- %s ---" % dash4_name)
 
 d4_specs = [
     {
-        "name": "Effective Discount % by Customer",
+        "name": "Discount % by Customer — rate vs all-in",
         "sql": ("SELECT customer_name,\n"
-                "  ROUND(AVG(effective_discount_pct) * 100, 2) AS eff_disc_pct\n"
+                "  ROUND((1 - SAFE_DIVIDE(SUM(contracted_cost_idr), NULLIF(SUM(gross_cost_idr), 0))) * 100, 1) AS discount_pct,\n"
+                "  ROUND((1 - SAFE_DIVIDE(SUM(net_cost_idr), NULLIF(SUM(gross_cost_idr), 0))) * 100, 1) AS disc_plus_credits_pct\n"
                 "FROM %s\n"
                 "WHERE %s\n"
                 "GROUP BY customer_name\n"
-                "ORDER BY eff_disc_pct DESC") % (FCM, RESOLD),
+                "ORDER BY disc_plus_credits_pct DESC") % (FCM, RESOLD),
         "tags": {},
-        "display": "bar",
-        "vs": {"graph.dimensions": ["customer_name"],
-               "graph.metrics": ["eff_disc_pct"],
-               "column_settings": pct_col("eff_disc_pct")},
+        "display": "table",
+        "vs": table_vs(disc_pct_cols=["discount_pct", "disc_plus_credits_pct"]),
         "w": 24, "h": 8,
         "is_money": False,
     },

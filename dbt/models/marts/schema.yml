@@ -42,6 +42,8 @@ models:
     columns:
       - name: customer_name
         tests: [not_null]
+      - name: effective_discount_pct
+        description: "Per-row diagnostic only. Do NOT average across rows; aggregate as 1 - SUM(effective_cost_idr)/SUM(gross_cost_idr)."
       - name: platform
         tests:
           - not_null

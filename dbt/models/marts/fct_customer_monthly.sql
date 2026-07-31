@@ -27,6 +27,7 @@ with charges as (
 credits_agg as (
     select
         billing_account_id,
+        platform,
         charge_month,
         sum(credit_amount) as total_credits_idr,
         sum(case when credit_type in (
@@ -47,7 +48,7 @@ credits_agg as (
                      'FREE_TIER'
                  ) then credit_amount else 0 end) as other_credits_idr
     from {{ ref('int_credits') }}
-    group by 1, 2
+    group by 1, 2, 3
 ),
 
 joined as (
@@ -79,6 +80,7 @@ joined as (
         on c.billing_account_id = m.billing_account_id
     left join credits_agg cr
         on  c.billing_account_id = cr.billing_account_id
+        and c.platform           = cr.platform
         and c.charge_month       = cr.charge_month
 )
 
@@ -104,27 +106,33 @@ select
     promo_credits_idr,
     free_tier_credits_idr,
     other_credits_idr,
-    -- effective_discount_pct: 1 means full discount, 0 means no discount
+    -- ALL-IN discount off list (effective_cost already includes credits; effective = contracted + credits).
+    -- Rate-only discount (pre-credit) = 1 - contracted/gross. do NOT AVG across rows — aggregate 1 - SUM(effective)/SUM(gross).
+    -- effective_discount_pct: 0 means no discount, 1 means full discount
     1 - SAFE_DIVIDE(effective_cost_idr, NULLIF(gross_cost_idr, 0)) as effective_discount_pct,
-    -- MoM: previous month net cost (NULL until second month accrues)
+    -- MoM: previous month net cost (NULL until second month accrues).
+    -- Partition by billing_account_id (the mart grain) NOT customer_id: a
+    -- customer can hold many billing accounts, and partitioning by customer_id
+    -- would sequence sibling accounts within one month and fabricate deltas.
+    -- Customer-level MoM = SUM(mom_delta_*) across the customer's accounts.
     LAG(net_cost_idr) OVER (
-        PARTITION BY customer_id, platform ORDER BY charge_month
+        PARTITION BY billing_account_id, platform ORDER BY charge_month
     ) as mom_prev_net_cost_idr,
     LAG(net_cost_usd) OVER (
-        PARTITION BY customer_id, platform ORDER BY charge_month
+        PARTITION BY billing_account_id, platform ORDER BY charge_month
     ) as mom_prev_net_cost_usd,
     net_cost_idr - LAG(net_cost_idr) OVER (
-        PARTITION BY customer_id, platform ORDER BY charge_month
+        PARTITION BY billing_account_id, platform ORDER BY charge_month
     ) as mom_delta_idr,
     net_cost_usd - LAG(net_cost_usd) OVER (
-        PARTITION BY customer_id, platform ORDER BY charge_month
+        PARTITION BY billing_account_id, platform ORDER BY charge_month
     ) as mom_delta_usd,
     SAFE_DIVIDE(
         net_cost_idr - LAG(net_cost_idr) OVER (
-            PARTITION BY customer_id, platform ORDER BY charge_month
+            PARTITION BY billing_account_id, platform ORDER BY charge_month
         ),
         NULLIF(LAG(net_cost_idr) OVER (
-            PARTITION BY customer_id, platform ORDER BY charge_month
+            PARTITION BY billing_account_id, platform ORDER BY charge_month
         ), 0)
     ) as mom_delta_pct
 from joined

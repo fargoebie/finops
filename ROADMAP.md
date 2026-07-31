@@ -25,29 +25,33 @@ Discounts & Credits).
   each customer sees only their own spend. Requires Metabase multi-tenant sandboxing and
   an auth handoff — significant infrastructure work.
 
-## Audit later — 10 unmapped billing accounts
+## Audit later — ~37 unmapped billing accounts
 
-These `Resold` accounts have no GCP org ancestry and generic project names, so they
-can't be identified from the billing data alone. They roll up under `(unmapped)` until
-someone maps them via internal records / billing-account contacts, then adds a row to
-`dbt/seeds/customer_accounts.csv`. (7 of the original 17 were mapped from clear project
-names; these 10 remain.)
+`Resold` accounts that resolve to `(unmapped)` because they can't be identified from
+the billing data alone. Map them via internal records / billing-account contacts, then
+add/complete rows in `dbt/seeds/customer_accounts.csv` and run `dbt seed && dbt run`.
 
-| Billing account | Project-name clue | Tentative guess | Billed (IDR) |
-|---|---|---|---|
-| `01024A-DA4AC6-521FE3` | Google Maps - ASSET | — (generic Terralogiq template) | 4.5M |
-| `016372-82F82A-433751` | Google Maps - ASSET | — | 2.8M |
-| `01E694-82D7A8-8D1B54` | Google Maps - ASSET | — | 0 |
-| `019DF5-F95405-3773A9` | Development, GIS-Production, Google Maps - ASSET | — | 1.6M |
-| `019A1C-D1998E-36F507` | Singapore | — | 4.2M |
-| `012371-B03D2A-4E7036` | My First Project | — | 2.4M |
-| `018509-728291-1E9D08` | My Maps Project | — | 0 |
-| `0196E4-9FB915-0858AD` | Mobile Collections/Order Survey VMF | a "VMF" multifinance? | 0 |
-| `01D242-BD6EC9-40FFE4` | Eureka Online, Masterdiskon, RajaCepat | one PPOB/fintech group? | 990k |
-| `010862-0E26CE-CE7B57` | Combi-Portal | Combiphar? | 0 |
+Two groups:
+1. **No org ancestry, generic project names** (the original ~10): `"Google Maps - ASSET"`
+   (a Terralogiq provisioning template, appears on several accounts — a product, not a
+   customer), `"Singapore"`, `"My First Project"`, `"My Maps Project"`, plus tentative
+   guesses like VMF (a multifinance), Eureka/Masterdiskon, Combi-Portal.
+2. **Reseller-org false-positives** (27 accounts): their projects are hosted under
+   Terralogiq's own `terralogiq.com` GCP org, so org-ancestry named them "terralogiq.com"
+   even though they are distinct customers. `int_customer_map` now nulls out the
+   reseller's own org (see its header), so these correctly fall to `(unmapped)`. 38 of the
+   65 were mapped from clear project-name evidence (BRI, Telkomsel, Pemprov DKI, Kemenkeu,
+   PLN, PELNI, BPJS-TK, Alfamidi, SCTV, Ajinomoto, …); the rest need records.
 
-Note: `"Google Maps - ASSET"` appears across several accounts and looks like a standard
-Terralogiq project-provisioning name (a product, not a customer) — resolve via records.
+Regenerate the current unmapped list any time with:
+```sql
+SELECT billing_account_id FROM `gcp-coe-492507.dbt_intermediate.int_customer_map`
+WHERE customer_name = '(unmapped)' AND billing_account_type = 'Resold';
+```
+
+**Seed hygiene:** keep `customer_name` identical for every row sharing a `customer_id`
+(the leaderboard groups by name); mixing e.g. "Bank BRI" and "bbri.id" under one
+`customer_id` splits the customer into two rows.
 
 ## Operational notes
 
