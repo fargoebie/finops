@@ -7,6 +7,7 @@ This document provides guidance for AI assistants working with this repository.
 - Never include AI assistant session links or URLs (e.g. claude.ai) in commit messages or pull request bodies.
 - Prefer graphify (`graphify query` / `path` / `explain`) when `graphify-out/` exists before broad Grep/Read exploration.
 - For this repo, default to **dbt/analytics-first** work (FOCUS billing models + Metabase). Do not expand into Kubernetes allocation/Prometheus unless the user asks.
+- See [HANDOFF.md](HANDOFF.md) for session-to-session learnings/gotchas and [ROADMAP.md](ROADMAP.md) for deferred work.
 
 ## Project Objective (Primary)
 
@@ -40,6 +41,12 @@ A GCP-native FinOps analytics stack built on the FOCUS billing standard:
 ### Reseller / multi-customer model
 
 The FOCUS export is a **multi-customer reseller export**: it contains ~108 billing accounts with `BillingAccountType` of either `Resold` (107 customer accounts) or `Reseller` (1 — Terralogiq itself, a GCP + GMP partner). Customer identity is resolved in `int_customer_map` by joining `dbt/seeds/customer_accounts.csv` (explicit overrides) with org-ancestry from `x_Project.Ancestors`; unrecognised accounts fall back to `(unmapped)`. A `platform` column (`GCP` vs `GMP`, derived from `ServiceName`) flows from staging through intermediates into all mart tables. To onboard a new customer, add a row to `dbt/seeds/customer_accounts.csv` then run `dbt seed && dbt run`.
+
+### Cost & discount semantics
+
+- All export rows are **IDR**; there is **no native USD column** (`PricingCurrency` is also IDR). USD is derived **row-level** in staging as `cost / x_CurrencyConversionRate` (~17,922 IDR/USD). Marts carry both IDR and USD; dashboards default to IDR with a USD toggle.
+- FOCUS cost waterfall: `list → contracted (negotiated rate) → billed`. **Credits are embedded in usage rows as `x_Credits` and are ALREADY reflected in `EffectiveCost`/`BilledCost`** (empirically `billed = contracted + credits`, and `effective = billed` in this data). Do NOT subtract credits from billed again.
+- The two discount metrics are: **Discount % = `1 − contracted/list`** (rate, pre-credit) and **Disc + Credits % = `1 − billed/list`** (all-in). Aggregate as **ratio-of-sums**, never AVG of per-row percentages.
 
 ## Repository Structure
 
@@ -242,15 +249,16 @@ Omitted on purpose for v1: `cloud_run.tf`, `artifact_registry.tf`, `cloud_sql.tf
 - Startup script: `infra/scripts/vm-startup.sh`
   - Installs Docker, Docker Compose, dbt-bigquery, nginx, Ops Agent
   - Writes `docker-compose.yml` and nginx config
+  - Generates a **self-signed TLS cert** (interim); upgrade to a trusted cert via `certbot --nginx -d <domain>` once a domain exists (see ROADMAP.md)
   - Configures daily dbt cron job
 - Static external IP for DNS/TLS
 
 ### B6. Service shape (principle E/H)
 
 - `docker-compose.yml`: Metabase + PostgreSQL, port `127.0.0.1:3000` (localhost only)
-- nginx: HTTP → HTTPS redirect; TLS proxy to Metabase at `127.0.0.1:3000`
-- dbt: runs via cron (`0 6 * * *`); outputs to `finops_dbt` BigQuery dataset
-- Metabase connects to BigQuery via ADC (VM SA identity — no JSON key)
+- nginx: HTTP → HTTPS redirect; TLS proxy to Metabase at `127.0.0.1:3000` (self-signed cert for the pilot — see B5)
+- dbt: runs via cron (`0 6 * * *`); outputs to `finops_dbt` BigQuery dataset; uses keyless ADC via the VM SA
+- Metabase connects to BigQuery via a **service-account JSON key** stored in Secret Manager (`finops-metabase-bq-key`), fetched onto the VM by `vm-startup.sh` (the Metabase BigQuery driver requires a key file). Keyless ADC for Metabase is a post-pilot item (see ROADMAP.md).
 
 ### B7. Deploy flow
 
@@ -284,7 +292,7 @@ tofu apply
 ### B9. Smoke test checklist
 
 - [ ] `tofu plan` clean; state in versioned GCS bucket
-- [ ] VM healthy; Metabase accessible at `https://YOUR_DOMAIN`
+- [ ] VM healthy; Metabase accessible at `https://YOUR_DOMAIN` (self-signed cert / IP for the pilot)
 - [ ] dbt run succeeds: `./scripts/deploy.sh dbt-run`
 - [ ] All six mart tables present in `finops_dbt` BigQuery dataset
 - [ ] Metabase connected to BigQuery; mart tables visible in Admin → Databases
@@ -304,7 +312,7 @@ Reviewed against [`docs/architecture-compliance.md`](docs/architecture-complianc
 | ID | Principle | Status | Notes |
 |----|-----------|--------|-------|
 | **A** | Dedicated least-privilege SAs | **Required / designed** | One VM SA; no default Compute SA; BQ + per-secret + observability roles only |
-| **B** | Managed secrets by reference | **Required / designed** | Secret Manager for `metabase-db-password`; ADC for BQ (no key material) |
+| **B** | Managed secrets by reference | **Required / designed** | Secret Manager holds `metabase-db-password` and `metabase-bq-key`; Metabase BQ driver uses the JSON key (by reference — principle B still holds); dbt uses keyless ADC |
 | **C** | No public IP on data stores | **N/A (v1)** | No Cloud SQL/Redis; BQ is Google-managed. Custom VPC + PGA still required |
 | **D** | IAP-only admin access | **Required / designed** | IAP SSH for VM; no public port 22 |
 | **E** | App-layer auth on public services | **Required / designed** | nginx TLS + Metabase auth; no anonymous data exposure |
@@ -328,7 +336,7 @@ Documented target: e2-medium VM + OpenTofu + Secret Manager + dedicated SA + IAP
 
 ### Prerequisites
 
-- Python 3.9+ with `dbt-bigquery` (`pip install dbt-bigquery`)
+- Python 3.9+ with `dbt-bigquery` — use the repo `.venv` convention: `python3 -m venv .venv && .venv/bin/pip install dbt-bigquery` (currently dbt-bigquery 1.12; `.venv/` is gitignored). Or `pip install dbt-bigquery` globally if preferred.
 - Docker + Docker Compose
 - `gcloud` authenticated to `gcp-coe-492507` with access to `terra-coe-finops`
 - FOCUS export table populated (see Plan A)
