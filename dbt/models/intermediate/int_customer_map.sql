@@ -12,9 +12,19 @@
 with seed as (
     select
         billing_account_id,
-        NULLIF(customer_name, '') as cn,
-        NULLIF(customer_id, '')   as cid
+        NULLIF(customer_name, '')  as cn,
+        NULLIF(customer_id, '')    as cid,
+        NULLIF(account_class, '')  as cls
     from {{ ref('customer_accounts') }}
+),
+
+-- Display names come from the Cloud Billing API (the FOCUS export has none).
+-- TRIM because a few displayNames carry stray whitespace/tabs.
+names as (
+    select
+        billing_account_id,
+        NULLIF(TRIM(billing_account_name), '') as ban
+    from {{ ref('billing_accounts') }}
 ),
 
 observed as (
@@ -38,16 +48,23 @@ resolved as (
         o.billing_account_type,
         s.cn,
         s.cid,
+        s.cls,
+        n.ban,
         -- ancestry is a customer signal only when it is NOT the reseller's own org
         NULLIF(o.x_org_ancestor_name, r.org) as anc
     from observed o
     cross join reseller_org r
     left join seed s using (billing_account_id)
+    left join names n using (billing_account_id)
 )
 
 select
     billing_account_id,
+    COALESCE(ban, '(unnamed)')                                          as billing_account_name,
     billing_account_type,
+    -- production | trial | internal, from the seed. 'unclassified' means a new
+    -- billing account has appeared in the export with no seed row yet.
+    COALESCE(cls, 'unclassified')                                       as account_class,
     COALESCE(cn, anc, '(unmapped)')                                     as customer_name,
     COALESCE(cid, LOWER(REGEXP_REPLACE(
         COALESCE(cn, anc, 'unmapped'), r'[^a-zA-Z0-9]+', '_')))         as customer_id,

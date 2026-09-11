@@ -54,9 +54,11 @@ credits_agg as (
 joined as (
     select
         c.billing_account_id,
+        m.billing_account_name,
         m.customer_name,
         m.customer_id,
         m.billing_account_type,
+        m.account_class,
         c.platform,
         c.charge_month,
         c.billing_currency,
@@ -86,9 +88,11 @@ joined as (
 
 select
     billing_account_id,
+    billing_account_name,
     customer_name,
     customer_id,
     billing_account_type,
+    account_class,
     platform,
     charge_month,
     billing_currency,
@@ -106,6 +110,13 @@ select
     promo_credits_idr,
     free_tier_credits_idr,
     other_credits_idr,
+    -- Sales-credit ("TRLQ credit") funding. Credits are negative, so negate to
+    -- get the share of list price absorbed by PROMOTION credits. An account over
+    -- the 50% mark bills near zero while consuming real capacity, so it sinks in
+    -- any net-cost ranking — segment on this rather than reading net_cost_idr.
+    SAFE_DIVIDE(-promo_credits_idr, NULLIF(gross_cost_idr, 0))          as promo_credit_coverage_pct,
+    COALESCE(SAFE_DIVIDE(-promo_credits_idr, NULLIF(gross_cost_idr, 0)), 0) >= 0.5
+                                                                        as is_credit_funded,
     -- ALL-IN discount off list (effective_cost already includes credits; effective = contracted + credits).
     -- Rate-only discount (pre-credit) = 1 - contracted/gross. do NOT AVG across rows — aggregate 1 - SUM(effective)/SUM(gross).
     -- effective_discount_pct: 0 means no discount, 1 means full discount

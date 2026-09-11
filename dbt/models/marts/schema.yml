@@ -53,6 +53,36 @@ models:
         tests: [not_null]
       - name: billing_account_id
         tests: [not_null]
+      - name: billing_account_name
+        description: "Cloud Billing displayName, from the billing_accounts seed. '(unnamed)' if the API list is stale."
+        tests: [not_null]
+      - name: account_class
+        description: "production | trial | internal. 'unclassified' flags a billing account with no customer_accounts.csv row."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['production', 'trial', 'internal', 'unclassified']
+      - name: is_credit_funded
+        description: "True when PROMOTION (sales) credits absorb >=50% of list cost. Such accounts bill near zero — exclude or segment them in net-cost rankings."
+        tests: [not_null]
+      - name: promo_credit_coverage_pct
+        description: "Share of list cost absorbed by PROMOTION credits. Per-row diagnostic; aggregate as -SUM(promo_credits_idr)/SUM(gross_cost_idr)."
+
+  - name: fct_credit_runway
+    description: "Sales/promotional credit runway per credit × billing account. Burn is observed from the export; total_amount_idr, start_date and end_date are transcribed by hand into the credit_programs seed (no API exposes them), so runway columns are NULL until filled."
+    columns:
+      - name: credit_id
+        tests: [not_null]
+      - name: billing_account_id
+        tests: [not_null]
+      - name: is_active
+        description: "Credit still applying as of the last complete export day."
+        tests: [not_null]
+      - name: is_unseeded
+        description: "Credit observed in the export with no credit_programs row — amount and end date unknown."
+        tests: [not_null]
+      - name: runway_days
+        description: "Days until the credit runs out of money or reaches end_date, whichever is sooner. NULL when neither is known (amount and end_date both untranscribed)."
 
   - name: fct_customer_service_month
     description: "Customer × platform × service × month service-trend mart."

@@ -25,12 +25,16 @@ select
     PublisherName                                            as publisher_name,
     ServiceName                                              as service_name,
 
-    -- Platform: GMP if ServiceName is a known Maps/Places/... service, else GCP
+    -- Platform: GMP if ServiceName is a known Maps/Places/... service, else GCP.
+    -- Re-check when Google ships new Maps services: any ServiceName ending in ' API'
+    -- that is absent here is silently counted as GCP.
     CASE WHEN ServiceName IN (
       'Maps API','Places API','Places API (New)','Places Aggregate API','Geocoding API',
       'Directions API','Google Maps Platform - Routes','Route Optimization API',
       'Maps Static API','Maps Elevation API','Google Maps Tile API',
-      'Google Maps Platform Weather Service','Street View Static API'
+      'Google Maps Platform Weather Service','Street View Static API',
+      'Geolocation API','Distance Matrix API','Time Zone API','Roads API',
+      'Isochrones API'
     ) THEN 'GMP' ELSE 'GCP' END                              as platform,
 
     RegionId                                                 as region_id,

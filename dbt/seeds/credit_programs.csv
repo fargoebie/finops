@@ -1,0 +1,10 @@
+credit_id,credit_name,billing_account_id,total_amount_idr,start_date,end_date,notes
+955ffa4e-200b-4750-ad00-d8fde8444dc6,Sales Credit - florencei - 541974359,010964-FA602E-4CE636,,,,observed 2026-08-04 to 2026-09-10
+acf6b4cc-c2df-412e-b30f-8bcbd8d2a529,Sales Credit - yoswandi - 521283994,01A1F1-382822-22B32B,,,,observed 2026-07-25 to 2026-09-09
+migration-credit-14-1751305715249,Migration Credit 14,01E5F4-66804E-8286B7,,,,observed 2026-07-30 to 2026-08-30
+migration-credit-15-1751305715249,Migration Credit 15,01E5F4-66804E-8286B7,,,,observed 2026-08-30 to 2026-09-10
+be206c1e-cf98-4f38-b842-77e46b91c483,Sales Credit - florencei - 527419404,01D1DB-ECD2AF-F59B7A,,,,observed 2026-07-31 to 2026-08-12
+migration-credit-13-1751305715249,Migration Credit 13,01E5F4-66804E-8286B7,,,,observed 2026-07-21 to 2026-07-30
+dea5e026-a67f-4a4d-b1da-fa3864688d15,Sales Credit - waworuntu - 516372508,01ACB3-EFAAC4-4A4F98,,,,observed 2026-07-24 to 2026-08-26
+4a4a34fd7ecdffcfadc95fe73d916766e477b274382a3c11669070581743a48b,Trial credit for GenAI App Builder,01319C-C0F533-768FB2,,,,observed 2026-07-25 to 2026-09-09
+a79efea5-5b0e-34fb-8650-24655848d33f:tier-0:1754031600,Infra & Apps (Windows) - Mithra deal 1751305715249 conditional credit 1 -  2025-08,01E5F4-66804E-8286B7,,,,observed 2026-08-13 to 2026-08-13
