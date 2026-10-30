@@ -3,25 +3,42 @@ version: 2
 models:
   - name: stg_focus_billing
     description: >
-      Staging view over GCP billing in FOCUS shape. Cutover union: before var focus_cutover_date
+      Staging table over GCP billing in FOCUS shape. Cutover union: before var focus_cutover_date
       (2026-07-26, UTC) rows come from finops_history.focus_billing_history, which is the detailed
-      export converted to the FOCUS schema (history from 2026-01-01); from the cutover onward rows come
-      from the live FOCUS export. Each ChargePeriodStart is served by exactly one source. FOCUS rows
+      export (from 2025-09-01) and the frozen standard export (2025-01-01 to 2025-08-31) converted to
+      the FOCUS schema (history from 2025-01-01); from the cutover onward rows come from the live
+      FOCUS export. Each ChargePeriodStart is served by exactly one source. FOCUS rows
       dated before the cutover are excluded to avoid double counting. A few columns are heuristic or
       inexact in the history half (PricingCategory, PricingQuantity, RegionName, BillingPeriodStart/End
-      for PST months, unverified); x_SystemLabels is exact. See
+      for PST months, unverified); x_SystemLabels is exact. 2025-01 to 2025-08 history has no resource grain
+      (ResourceId, ResourceName and x_SubscriptionInstanceId are NULL) and no price/consumption-model
+      detail before mid-June 2025. See
       tools/history_backfill/README.md. No other rows are dropped.
+      Materialized as an incremental table partitioned by charge_date (day) and clustered by
+      billing_account_id, service_name. Append-only: each nightly run appends the FOCUS export
+      partitions after max(export_day) that have closed (export_day <= current_date - 2, UTC), so data
+      lags the export by about two days; history rows are only rebuilt by --full-refresh. The label/tag arrays (x_labels, x_system_labels, x_project_labels, x_tags)
+      are not carried; query the source tables for them. Column tests here are limited to the last
+      7 charge days so a test run scans a few partitions, not the whole table.
     columns:
       - name: charge_category
         description: "FOCUS ChargeCategory: Usage, Purchase, Tax, Credit, Adjustment."
         tests:
-          - not_null
+          - not_null:
+              config:
+                where: "charge_date >= date_sub(current_date(), interval 7 day)"
           - accepted_values:
               values: ['Usage', 'Purchase', 'Tax', 'Credit', 'Adjustment']
+              config:
+                where: "charge_date >= date_sub(current_date(), interval 7 day)"
       - name: billed_cost
         description: "Amount charged to the billing account (negative for credits)."
         tests:
-          - not_null
+          - not_null:
+              config:
+                where: "charge_date >= date_sub(current_date(), interval 7 day)"
+      - name: export_day
+        description: "_PARTITIONDATE of the FOCUS export partition the row came from; the incremental key. NULL on history rows (ChargePeriodStart < focus_cutover_date)."
       - name: project_id
         description: "GCP project ID (FOCUS SubAccountId)."
       - name: x_project_name
@@ -33,9 +50,13 @@ models:
       - name: platform
         description: "GMP if ServiceName is a Google Maps Platform service, else GCP."
         tests:
-          - not_null
+          - not_null:
+              config:
+                where: "charge_date >= date_sub(current_date(), interval 7 day)"
           - accepted_values:
               values: ['GCP', 'GMP']
+              config:
+                where: "charge_date >= date_sub(current_date(), interval 7 day)"
       - name: list_cost_usd
         description: "list_cost converted to USD via row-level x_CurrencyConversionRate."
       - name: contracted_cost_usd

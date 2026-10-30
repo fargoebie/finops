@@ -33,6 +33,7 @@ When implementing or debugging, prefer these code areas first:
 A GCP-native FinOps analytics stack built on the FOCUS billing standard:
 
 - **Data source:** GCP FOCUS billing export (`gcp_billing_export_focus_v1_*`) in BigQuery
+- **Data coverage:** marts cover 2025-01-01 onward: `gcp-coe-492507.finops_history.focus_billing_history` (frozen; standard export for Jan–Aug 2025, detailed export from Sep 2025) before 2026-07-26, then the live FOCUS export. Marts lag ~2 days (stg appends only closed export days). Cutover is dbt var `focus_cutover_date`; rebuild via `tools/history_backfill/README.md`.
 - **Transform:** dbt Core in `dbt/` — staging → intermediate → marts
 - **Visualisation:** self-hosted Metabase (Docker, port 3000) behind nginx TLS
 - **Deploy target:** e2-medium VM (`finops-vm`) on GCP, managed with OpenTofu in `infra/`
@@ -63,6 +64,7 @@ finops/
 │   ├── tests/              # assert_no_unmapped_resold_accounts.sql (severity warn)
 │   ├── profiles.yml        # BigQuery ADC profile (env-var driven)
 │   └── dbt_project.yml
+├── tools/history_backfill/ # one-off FOCUS history rebuild (bq cp, convert SQL, schema check, README)
 ├── metabase/               # build_dashboards.py — Terralogiq BOD dashboard builder
 ├── infra/                  # PRIMARY: OpenTofu IaC — VM, VPC, IAM, secrets
 │   ├── *.tf                # Flat layout: vm.tf, vpc.tf, iam.tf, secrets.tf, …
@@ -88,6 +90,7 @@ GCP Billing Account
         ▼
 BigQuery FOCUS export table
   gcp_billing_export_focus_v1_*
+  + finops_history.focus_billing_history  (frozen, < 2026-07-26)
         │
         ▼
 dbt Core  (dbt/models/)
@@ -398,9 +401,10 @@ dbt run --select fct_spend_waterfall
 
 | Table | Description |
 |-------|-------------|
-| `stg_focus_billing` | Staging — raw FOCUS columns with charge_date/month |
-| `int_charges` | Intermediate — Usage/Purchase/Tax charge types |
-| `int_credits` | Intermediate — ChargeType=Credit, preserves ChargeSubcategory |
+| `stg_focus_billing` | Staging — row-level FOCUS columns with charge_date/month and export_day; incremental table partitioned by charge_date, appends closed export days (~2-day lag). Label/tag arrays (x_Labels, x_SystemLabels, x_ProjectLabels, x_Tags) are not carried — query the source tables |
+| `int_charges` | Intermediate — Usage/Purchase/Tax charges summed to day grain over mart dimensions; `row_count` = source rows (use `sum(row_count)`, not `count(*)`) |
+| `int_credits` | Intermediate — x_Credits unnested and summed to day grain by credit type/id/full name; `row_count` = credit records |
+| `int_billing_account_days` | Intermediate — per billing account × day, type and org ancestry over every stg row; feeds `int_customer_map` |
 | `int_customer_map` | Intermediate — resolves billing_account_id → customer via seed + org-ancestry |
 | `fct_spend_waterfall` | List → contracted → effective → billed + delta columns |
 | `fct_credit_breakdown` | Credits by credit_type/project/service/month |
@@ -413,7 +417,7 @@ dbt run --select fct_spend_waterfall
 
 1. Link related issues: `Fixes #123`, `Closes #456`
 2. Describe user-facing / breaking changes
-3. Run `dbt run && dbt test` before submitting
+3. Run `dbt run && dbt test --exclude tag:reconciliation` before submitting
 4. Use signed commits (`Signed-off-by` required)
 
 ## Useful Links

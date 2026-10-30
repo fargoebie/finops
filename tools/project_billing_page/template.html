@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --text: #202124; --muted: #5f6368; --line: #dadce0; --blue: #1a73e8;
+    --up: #b3115a; --down: #188038; --panel: #f1f4fa; --head: #e8ecf5;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fff; color: var(--text); font: 14px/1.5 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 20px 24px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 22px; font-weight: 400; margin: 0; }
+  .asof { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .picker { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  select { font: inherit; color: var(--text); padding: 7px 28px 7px 12px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+
+  .summary { border: 2px solid #8ab4f8; border-radius: 8px; background: #f8faff; margin-bottom: 18px; }
+  .summary-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; cursor: pointer; font-size: 16px; font-weight: 500; user-select: none; }
+  .summary-head svg { transition: transform .15s; }
+  .summary.closed .summary-head svg { transform: rotate(180deg); }
+  .summary.closed .summary-body { display: none; }
+  .summary-body { padding: 0 18px 14px 36px; }
+  .summary-body p { margin: 6px 0; }
+  .summary-body ul { margin: 2px 0 8px; padding-left: 22px; }
+  .summary-body li { margin: 3px 0; }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border-radius: 12px; padding: 18px 0; margin-bottom: 20px; }
+  .cards.single { grid-template-columns: 1fr; }
+  .card { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; padding: 0 28px; }
+  .card + .card { border-left: 1px solid var(--line); }
+  .card .label { font-weight: 500; margin-bottom: 6px; }
+  .card .big { font-size: 18px; margin-bottom: 18px; }
+  .card .note { font-size: 12px; color: var(--muted); }
+  .card .chg { font-size: 18px; margin: 28px 0 18px; }
+  .card .chg.na { color: var(--muted); }
+  .card .col-b .label { visibility: hidden; margin-bottom: 0; height: 0; }
+  .up { color: var(--up); } .down { color: var(--down); }
+  .arrow { display: inline-block; width: 1em; text-align: center; font-weight: 500; }
+
+  .help { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border: 1.5px solid var(--muted); border-radius: 50%; color: var(--muted); font-size: 10px; font-weight: 500; margin-left: 5px; cursor: help; position: relative; vertical-align: 1px; }
+  .help:hover::after { content: attr(data-tip); position: absolute; left: 50%; top: 22px; transform: translateX(-50%); width: 280px; padding: 8px 10px; background: #3c4043; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.4; border-radius: 4px; z-index: 10; text-align: left; }
+
+  .chart-tools { display: flex; justify-content: flex-end; align-items: center; gap: 16px; margin-bottom: 4px; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .switch input { display: none; }
+  .switch .track { width: 34px; height: 14px; border-radius: 7px; background: #c4c7cc; position: relative; transition: background .15s; }
+  .switch .track::after { content: ""; position: absolute; left: -2px; top: -3px; width: 20px; height: 20px; border-radius: 50%; background: #202a4a; transition: left .15s; }
+  .switch input:checked + .track { background: #8ab4f8; }
+  .switch input:checked + .track::after { left: 16px; }
+  .seg { display: inline-flex; border: 1px solid #8ab4f8; border-radius: 16px; overflow: hidden; }
+  .seg button { border: 0; background: #fff; padding: 5px 16px; cursor: pointer; display: flex; align-items: center; }
+  .seg button.on { background: #d3e3fd; }
+  .chart-wrap { position: relative; height: 340px; }
+  .legend { display: flex; align-items: center; margin: 10px 0 18px 8px; color: var(--text); }
+  .legend i { display: inline-block; width: 40px; height: 28px; background: #e8eaed; margin-right: 10px; }
+
+  .table-tools { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .btn { font: inherit; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 6px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; color: var(--text); }
+  .btn:hover { background: #f8f9fa; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 960px; }
+  thead th { background: var(--head); font-weight: 500; text-align: right; padding: 9px 14px; white-space: nowrap; cursor: pointer; user-select: none; border-bottom: 1px solid var(--line); }
+  thead th:first-child { text-align: left; padding-left: 40px; }
+  thead th .sort { display: inline-block; width: 1em; margin-right: 4px; color: var(--text); }
+  tbody td { padding: 7px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tbody td:first-child { text-align: left; white-space: normal; }
+  tbody tr:hover { background: #f8f9fa; }
+  .proj { display: flex; align-items: center; gap: 12px; }
+  .proj .mk { flex: 0 0 14px; display: flex; justify-content: center; }
+  .proj .nm { line-height: 1.25; }
+  .proj small { display: block; color: var(--muted); font-size: 11px; }
+  tfoot td { padding: 9px 14px; text-align: right; font-weight: 500; background: #f8f9fa; border-top: 2px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tfoot td:first-child { text-align: left; padding-left: 40px; }
+  .dash { color: var(--muted); }
+  @media (max-width: 860px) { .cards, .card { grid-template-columns: 1fr; } .card + .card { border-left: 0; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; } .card .chg { margin: 0 0 12px; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1 id="title"></h1>
+      <div class="asof" id="asof"></div>
+    </div>
+    <label class="picker">Period <select id="month"></select></label>
+  </header>
+
+  <section class="summary" id="summary">
+    <div class="summary-head" id="summary-toggle">
+      <span>Summary</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+    </div>
+    <div class="summary-body" id="summary-body"></div>
+  </section>
+
+  <section class="cards" id="cards"></section>
+
+  <div class="chart-tools">
+    <label class="switch"><input type="checkbox" id="cum"><span class="track"></span>Show cumulative</label>
+    <span class="seg">
+      <button id="t-line" title="Line"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/></svg></button>
+      <button id="t-bar" class="on" title="Bar"><svg width="18" height="18" viewBox="0 0 24 24" fill="#202124"><rect x="4" y="11" width="4" height="9"/><rect x="10" y="4" width="4" height="16"/><rect x="16" y="8" width="4" height="12"/></svg></button>
+    </span>
+  </div>
+  <div class="chart-wrap"><canvas id="chart"></canvas></div>
+  <div class="legend" id="legend"></div>
+
+  <div class="table-tools"><button class="btn" id="csv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#202124" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m-5-5l5 5 5-5M5 20h14"/></svg>Download CSV</button></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr id="thead"></tr></thead>
+      <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+  </div>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const ROWS = DATA.rows;
+const NO_PROJECT = "(no project)";
+const PALETTE = ["#4F83EC", "#EA5B2B", "#F5A623", "#7CB342", "#AB47BC", "#26A69A", "#EC407A", "#8D6E63"];
+const OTHERS_COLOR = "#9AA0A6", FORECAST_COLOR = "#E8EAED";
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const COLS = [
+  {k: "name", label: "Project"},
+  {k: "usage_cost", label: "Usage cost", tip: "List price of usage before any discounts."},
+  {k: "negotiated_savings", label: "Negotiated savings", tip: "Contracted price minus list price."},
+  {k: "savings_programs", label: "Savings programs", tip: "Committed use discount credits."},
+  {k: "other_savings", label: "Other savings", tip: "All other credits: promotions, reseller margin, discounts."},
+  {k: "tax", label: "Tax"},
+  {k: "subtotal", label: "Subtotal", tip: "Usage cost + savings + tax. This is the amount billed."},
+  {k: "pct", label: "% Change", tip: "Subtotal change versus the prior period."},
+];
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2, "0");
+const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+const iso = dt => `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+const addDays = (s, n) => { const dt = parse(s); dt.setUTCDate(dt.getUTCDate() + n); return iso(dt); };
+const daysIn = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+const diffDays = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+
+function rp(v, dec = 0) {
+  const s = Math.abs(v).toLocaleString("en-US", {minimumFractionDigits: dec, maximumFractionDigits: dec});
+  return (v < 0 && Number(s.replace(/,/g, "")) !== 0 ? "-" : "") + "Rp" + s;
+}
+function rpAxis(v) {
+  const a = Math.abs(v), sign = v < 0 ? "-" : "";
+  const f = x => String(+x.toFixed(2));
+  if (a >= 1e9) return `${sign}Rp${f(a / 1e9)}B`;
+  if (a >= 1e6) return `${sign}Rp${f(a / 1e6)}M`;
+  if (a >= 1e3) return `${sign}Rp${f(a / 1e3)}K`;
+  return `${sign}Rp${f(a)}`;
+}
+function fmtRange(a, b, long) {
+  const A = parse(a), B = parse(b), mn = long ? MONTHS_LONG : MONTHS;
+  const ay = A.getUTCFullYear(), by = B.getUTCFullYear();
+  const left = `${mn[A.getUTCMonth()]} ${A.getUTCDate()}`;
+  if (a === b) return `${left}, ${ay}`;
+  if (ay !== by) return `${left}, ${ay}–${mn[B.getUTCMonth()]} ${B.getUTCDate()}, ${by}`;
+  if (A.getUTCMonth() === B.getUTCMonth()) return `${left}–${B.getUTCDate()}, ${by}`;
+  return `${left}–${mn[B.getUTCMonth()]} ${B.getUTCDate()}, ${by}`;
+}
+function pctChange(cur, prior) { return Math.abs(prior) < 0.5 ? null : (cur - prior) / Math.abs(prior) * 100; }
+
+// ---------- data ----------
+const projKey = r => r.pid || NO_PROJECT;
+const LAST_DATE = ROWS.filter(r => r.cat === "Usage").reduce((m, r) => r.d > m ? r.d : m, "0000");
+const MONTH_LIST = [...new Set(ROWS.map(r => r.d.slice(0, 7)))].sort().reverse();
+const LAST_MONTH = LAST_DATE.slice(0, 7);
+const PARTIAL_LAST = LAST_DATE < `${LAST_MONTH}-${pad(daysIn(LAST_MONTH))}`;
+// name per project = the most recent one seen
+const NAMES = {};
+[...ROWS].sort((a, b) => a.d < b.d ? -1 : 1).forEach(r => { NAMES[projKey(r)] = r.pname; });
+
+function inRange(a, b) { return ROWS.filter(r => r.d >= a && r.d <= b); }
+function aggregate(rows) {
+  const out = {};
+  for (const r of rows) {
+    const k = projKey(r);
+    const o = out[k] || (out[k] = {id: k, name: NAMES[k], usage_cost: 0, negotiated_savings: 0, savings_programs: 0, other_savings: 0, tax: 0, subtotal: 0});
+    for (const f of ["usage_cost", "negotiated_savings", "savings_programs", "other_savings", "tax", "subtotal"]) o[f] += r[f];
+  }
+  return out;
+}
+const sum = (o, f) => Object.values(o).reduce((s, p) => s + p[f], 0);
+const savingsOf = p => p.negotiated_savings + p.savings_programs + p.other_savings;
+
+// Selected month -> current range, prior range, forecast info.
+function periodFor(ym) {
+  const dim = daysIn(ym), first = `${ym}-01`, monthEnd = `${ym}-${pad(dim)}`;
+  const partial = ym === LAST_MONTH && PARTIAL_LAST;
+  const end = partial ? LAST_DATE : monthEnd;
+  const n = diffDays(first, end) + 1;
+  let prior;
+  if (partial) prior = [addDays(first, -n), addDays(first, -1)];            // the n days before the month starts
+  else { const pm = iso(new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 2, 1))); prior = [pm, `${pm.slice(0, 7)}-${pad(daysIn(pm.slice(0, 7)))}`]; }
+  const hasPrior = ROWS.some(r => r.d >= prior[0] && r.d <= prior[1]);
+  return {ym, first, end, monthEnd, dim, partial, n, prior: hasPrior ? prior : null};
+}
+
+// Forecast: month-to-date + average daily usage-row subtotal over the trailing 30 complete days x remaining days.
+function forecastFor(P) {
+  const lastComplete = addDays(LAST_DATE, -1), start = addDays(lastComplete, -29);
+  const byDay = {};
+  ROWS.forEach(r => { if (r.cat === "Usage" && r.d >= start && r.d <= lastComplete) byDay[r.d] = (byDay[r.d] || 0) + r.subtotal; });
+  const days = Object.keys(byDay).length;
+  const avg = days ? Object.values(byDay).reduce((a, b) => a + b, 0) / days : 0;
+  const remaining = diffDays(P.end, P.monthEnd);
+  const mtd = sum(aggregate(inRange(P.first, P.end)), "subtotal");
+  const p0 = addDays(P.first, -P.dim), p1 = addDays(P.first, -1);          // preceding full-length window, as the console does
+  const priorRows = inRange(p0, p1);
+  return {avg, days, remaining, total: mtd + avg * remaining, prior: priorRows.length ? [p0, p1] : null, start, lastComplete};
+}
+
+// ---------- state ----------
+const state = {ym: null, sortKey: "subtotal", sortDir: -1, cum: false, type: "bar", chart: null, view: null};
+
+// ---------- render ----------
+function chgHtml(pct, dec) {
+  if (pct === null) return `<span class="dash">—</span>`;
+  const cls = pct > 0 ? "up" : pct < 0 ? "down" : "";
+  const arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "";
+  return `<span class="${cls}"><span class="arrow">${arrow}</span>${Math.abs(pct).toLocaleString("en-US", {minimumFractionDigits: dec, maximumFractionDigits: dec})}%</span>`;
+}
+
+function build(ym) {
+  const P = periodFor(ym);
+  const cur = aggregate(inRange(P.first, P.end));
+  const prior = P.prior ? aggregate(inRange(P.prior[0], P.prior[1])) : {};
+  const curTotal = sum(cur, "subtotal"), priorTotal = P.prior ? sum(prior, "subtotal") : null;
+  const rows = Object.values(cur).map(p => {
+    const pr = prior[p.id];
+    p.prior = pr ? pr.subtotal : 0;
+    p.hasPrior = !!pr && (Math.abs(pr.subtotal) >= 0.5 || Math.abs(pr.usage_cost) >= 0.5);
+    p.pct = P.prior && p.hasPrior ? pctChange(p.subtotal, p.prior) : null;
+    p.isNew = !!P.prior && !p.hasPrior && (Math.abs(p.subtotal) >= 0.5 || Math.abs(p.usage_cost) >= 0.5);
+    return p;
+  });
+  // projects that only had spend in the prior period count as -100% only when listed; they have no rows in the current period
+  const ranked = [...rows].sort((a, b) => b.subtotal - a.subtotal);
+  ranked.forEach((p, i) => { p.rank = i; p.color = i < PALETTE.length ? PALETTE[i] : OTHERS_COLOR; p.shape = i < PALETTE.length ? i : -1; });
+  return {P, cur, prior, rows, ranked, curTotal, priorTotal, fc: P.partial ? forecastFor(P) : null};
+}
+
+function renderHeader() {
+  $("title").textContent = `${DATA.name} · ${DATA.account} — Cost by project`;
+  $("asof").textContent = `As of ${LAST_DATE} (latest data day; the last day is usually partial) · generated ${DATA.generated} · all amounts in IDR`;
+}
+
+function renderSummary(V) {
+  const {P, rows, curTotal, priorTotal} = V;
+  const html = [];
+  let line = `You spent <b>${rp(curTotal)}</b> between ${fmtRange(P.first, P.end)}.`;
+  const pct = P.prior ? pctChange(curTotal, priorTotal) : null;
+  if (pct !== null) line += ` This was a ${Math.round(Math.abs(pct)).toLocaleString("en-US")}% ${pct >= 0 ? "increase" : "decrease"} from ${fmtRange(P.prior[0], P.prior[1])}.`;
+  else if (!P.prior) line += " There is no prior period with data to compare against.";
+  html.push(`<p>${line}</p>`);
+  if (P.prior) {
+    const fresh = rows.filter(p => p.isNew).sort((a, b) => b.subtotal - a.subtotal);
+    if (fresh.length) {
+      html.push(`<p>This period, you had ${fresh.length} new project${fresh.length > 1 ? "s" : ""}${fresh.length > 5 ? " including" : ""}:</p><ul>` +
+        fresh.slice(0, 5).map(p => `<li><b>${esc(p.name)}</b> at ${rp(p.subtotal)}</li>`).join("") +
+        (fresh.length > 5 ? `<li>and ${fresh.length - 5} more</li>` : "") + `</ul>`);
+    } else html.push(`<p>No new projects this period.</p>`);
+    const seen = new Set(rows.map(p => p.id));
+    const gone = Object.values(V.prior).filter(p => !seen.has(p.id) && Math.abs(p.subtotal) >= 0.5).map(p => ({id: p.id, name: p.name, subtotal: 0, prior: p.subtotal, pct: -100}));
+    const movers = rows.map(p => ({id: p.id, name: p.name, delta: p.subtotal - p.prior, pct: p.pct, isNew: p.isNew}))
+      .concat(gone.map(p => ({id: p.id, name: p.name, delta: -p.prior, pct: -100, isNew: false})));
+    const top = movers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
+    if (top && Math.abs(top.delta) >= 0.5) {
+      const sign = top.delta >= 0 ? "+" : "-";
+      const p = top.pct === null ? "new this period" : `${sign}${Math.round(Math.abs(top.pct)).toLocaleString("en-US")}%`;
+      html.push(`<p><b>${esc(top.name)}</b> had the largest nominal change in cost: ${sign}${rp(Math.abs(top.delta))} (${p}) compared to the previous period.</p>`);
+    }
+  }
+  $("summary-body").innerHTML = html.join("");
+}
+
+function card(label, tip, total, savings, prior) {   // prior: {total, label} or null
+  const sav = `includes ${rp(savings)} in savings`;
+  const pct = prior ? pctChange(total, prior.total) : null;
+  const chg = pct === null ? `<div class="chg na">—</div>` : `<div class="chg">${chgHtml(pct, 2)}</div>`;
+  const prev = prior ? `${rp(Math.abs(total - prior.total))} over ${prior.label}` : "no prior period with data";
+  return `<div class="card">
+    <div class="col-a"><div class="label">${label}${tip ? `<span class="help" data-tip="${esc(tip)}">?</span>` : ""}</div>
+      <div class="big">${rp(total)}</div><div class="note">${sav}</div></div>
+    <div class="col-b"><div class="label">&nbsp;</div>${chg}<div class="note">${prev}</div></div></div>`;
+}
+function renderCards(V) {
+  const {P, cur, curTotal, priorTotal, fc} = V;
+  const savings = Object.values(cur).reduce((s, p) => s + savingsOf(p), 0);
+  const left = card(fmtRange(P.first, P.end, true), null, curTotal, savings,
+    P.prior ? {total: priorTotal, label: fmtRange(P.prior[0], P.prior[1], true)} : null);
+  let right = "";
+  if (fc) {
+    const fPrior = fc.prior ? sum(aggregate(inRange(fc.prior[0], fc.prior[1])), "subtotal") : null;
+    const tip = `Forecast = month-to-date (${rp(curTotal)}) + average daily usage over the trailing ${fc.days} complete days (${fmtRange(fc.start, fc.lastComplete)}; ${rp(fc.avg)}/day) × ${fc.remaining} remaining day${fc.remaining === 1 ? "" : "s"}. The latest data day is excluded from the average because it is usually partial.`;
+    right = card(fmtRange(P.first, P.monthEnd, true) + " (forecasted)", tip, fc.total, savings,
+      fc.prior ? {total: fPrior, label: fmtRange(fc.prior[0], fc.prior[1], true)} : null);
+  }
+  $("cards").className = "cards" + (fc ? "" : " single");
+  $("cards").innerHTML = left + right;
+}
+
+// project marker shapes, as in the console
+function marker(shape, color) {
+  const s = {
+    0: `<circle cx="6" cy="6" r="4.5" fill="${color}"/>`,
+    1: `<rect x="2" y="2" width="8" height="8" fill="${color}"/>`,
+    2: `<path d="M6 0.5L11.5 6L6 11.5L0.5 6Z" fill="${color}"/>`,
+    3: `<path d="M1 2.5H11L6 10.5Z" fill="${color}"/>`,
+    4: `<path d="M1 10H11L6 2Z" fill="${color}"/>`,
+    5: `<path d="M3.5 1h5l3 5-3 5h-5l-3-5z" fill="${color}"/>`,
+    6: `<path d="M6 0.8l1.6 3.6 3.9.4-2.9 2.6.8 3.9L6 9.3 2.6 11.3l.8-3.9L.5 4.8l3.9-.4z" fill="${color}"/>`,
+    7: `<path d="M4 1h4v3h3v4H8v3H4V8H1V4h3z" fill="${color}"/>`,
+  }[shape] || `<circle cx="6" cy="6" r="4.5" fill="${color}"/>`;
+  return `<svg width="12" height="12" viewBox="0 0 12 12">${s}</svg>`;
+}
+
+function sortedRows(V) {
+  const k = state.sortKey, d = state.sortDir;
+  return [...V.rows].sort((a, b) => {
+    if (k === "name") return d * a.name.localeCompare(b.name);
+    const av = a[k], bv = b[k];
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;               // "—" always last
+    if (bv === null) return -1;
+    return d * (av - bv) || a.name.localeCompare(b.name);
+  });
+}
+
+function renderTable(V) {
+  $("thead").innerHTML = COLS.map(c => {
+    const arrow = state.sortKey === c.k ? (state.sortDir < 0 ? "↓" : "↑") : "";
+    return `<th data-k="${c.k}"><span class="sort">${arrow}</span>${c.label}${c.tip ? `<span class="help" data-tip="${esc(c.tip)}">?</span>` : ""}</th>`;
+  }).join("");
+  const money = (v, dash) => dash && Math.abs(v) < 0.005 ? `<span class="dash">—</span>` : rp(v);
+  $("tbody").innerHTML = sortedRows(V).map(p => `<tr>
+    <td><div class="proj"><span class="mk">${marker(p.shape, p.color)}</span><span class="nm">${esc(p.name)}${p.id !== p.name && p.id !== NO_PROJECT ? `<small>${esc(p.id)}</small>` : ""}</span></div></td>
+    <td>${rp(p.usage_cost)}</td><td>${rp(p.negotiated_savings)}</td><td>${money(p.savings_programs, true)}</td>
+    <td>${rp(p.other_savings)}</td><td>${rp(p.tax)}</td><td>${rp(p.subtotal)}</td><td>${chgHtml(p.pct, 0)}</td></tr>`).join("");
+  const t = f => V.rows.reduce((s, p) => s + p[f], 0);
+  const tp = V.P.prior ? pctChange(V.curTotal, V.priorTotal) : null;
+  $("tfoot").innerHTML = `<tr><td>Total (${V.rows.length} projects)</td><td>${rp(t("usage_cost"))}</td><td>${rp(t("negotiated_savings"))}</td>
+    <td>${money(t("savings_programs"), true)}</td><td>${rp(t("other_savings"))}</td><td>${rp(t("tax"))}</td><td>${rp(t("subtotal"))}</td><td>${chgHtml(tp, 0)}</td></tr>`;
+}
+
+function renderChart(V) {
+  const {P, ranked, fc} = V;
+  const labels = [];
+  for (let i = 0; i < P.dim; i++) labels.push(`${MONTHS[+P.ym.slice(5, 7) - 1]} ${i + 1}`);
+  const lastIdx = diffDays(P.first, P.end);                                // index of last actual day
+  const topIds = new Set(ranked.slice(0, PALETTE.length).map(p => p.id));
+  const series = ranked.slice(0, PALETTE.length).map(p => ({label: p.name, color: p.color, ids: new Set([p.id])}));
+  if (ranked.length > PALETTE.length) series.push({label: "Others", color: OTHERS_COLOR, ids: new Set(ranked.slice(PALETTE.length).map(p => p.id))});
+  const rows = inRange(P.first, P.end);
+  const lines = state.type === "line";
+  const datasets = series.map(s => {
+    const daily = new Array(P.dim).fill(0);
+    rows.forEach(r => { if (s.ids.has(projKey(r))) daily[diffDays(P.first, r.d)] += r.subtotal; });
+    let run = 0;
+    const data = daily.map((v, i) => i > lastIdx ? null : (state.cum ? (run += v) : v));
+    return {label: s.label, data, backgroundColor: lines ? s.color + "CC" : s.color, borderColor: s.color, borderWidth: lines ? 1.5 : 0,
+      fill: lines, pointRadius: 0, tension: 0, stack: "actual", order: 1};
+  });
+  if (fc) {
+    const mtd = V.curTotal;
+    const data = labels.map((_, i) => {
+      if (i < lastIdx) return null;
+      if (i === lastIdx) return lines && state.cum ? mtd : null;
+      return state.cum ? mtd + fc.avg * (i - lastIdx) : fc.avg;
+    });
+    datasets.push({label: "Forecast", data, stack: "forecast", grouped: false, order: 0,
+      backgroundColor: FORECAST_COLOR, borderColor: "#9AA0A6", borderWidth: lines ? 1.5 : 0, borderDash: [5, 4], fill: false, pointRadius: 0, tension: 0});
+  }
+  $("legend").innerHTML = fc ? `<i></i>Forecasted cost<span class="help" data-tip="Average daily usage over the trailing ${fc.days} complete days, applied to the ${fc.remaining} remaining day${fc.remaining === 1 ? "" : "s"} of the month.">?</span>` : "";
+  if (state.chart) state.chart.destroy();
+  state.chart = new Chart($("chart"), {
+    type: lines ? "line" : "bar",
+    data: {labels, datasets},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: {mode: "index", intersect: false},
+      categoryPercentage: 1, barPercentage: 0.66,
+      scales: {
+        x: {stacked: true, grid: {display: false}, ticks: {color: "#5f6368", font: {size: 11}, maxRotation: 0, autoSkip: true}},
+        y: {stacked: true, grace: "5%", ticks: {color: "#5f6368", font: {size: 11}, callback: rpAxis}, grid: {color: "#e8eaed"}},
+      },
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          itemSort: (a, b) => b.raw - a.raw,
+          filter: i => i.raw !== null && i.raw !== undefined && Math.abs(i.raw) >= 0.5,
+          callbacks: {
+            title: items => items.length ? items[0].label + (state.cum ? " (cumulative)" : "") : "",
+            label: i => `${i.dataset.label}: ${rp(i.raw)}`,
+            footer: items => {
+              const act = items.filter(i => i.dataset.label !== "Forecast");
+              return act.length ? "Total: " + rp(act.reduce((s, i) => s + i.raw, 0)) : "";
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function csvDownload() {
+  const V = state.view, q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const head = ["Project", "Project ID", "Usage cost", "Negotiated savings", "Savings programs", "Other savings", "Tax", "Subtotal", "% Change vs prior period"];
+  const lines = [head.map(q).join(",")];
+  sortedRows(V).forEach(p => lines.push([q(p.name), q(p.id === NO_PROJECT ? "" : p.id), p.usage_cost.toFixed(2), p.negotiated_savings.toFixed(2),
+    p.savings_programs.toFixed(2), p.other_savings.toFixed(2), p.tax.toFixed(2), p.subtotal.toFixed(2), p.pct === null ? "" : p.pct.toFixed(2)].join(",")));
+  const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], {type: "text/csv"}));
+  const a = Object.assign(document.createElement("a"), {href: url, download: `${DATA.account}-projects-${state.ym}.csv`});
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+function render() {
+  const V = state.view = build(state.ym);
+  renderSummary(V); renderCards(V); renderTable(V); renderChart(V);
+}
+
+function setMonth(ym) {
+  state.ym = MONTH_LIST.includes(ym) ? ym : MONTH_LIST[0];
+  $("month").value = state.ym;
+  if (location.hash.slice(1) !== state.ym) history.replaceState(null, "", "#" + state.ym);
+  render();
+}
+
+// ---------- wiring ----------
+renderHeader();
+$("month").innerHTML = MONTH_LIST.map(m => `<option value="${m}">${MONTHS_LONG[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}${m === LAST_MONTH && PARTIAL_LAST ? " (partial)" : ""}</option>`).join("");
+$("month").onchange = e => setMonth(e.target.value);
+window.addEventListener("hashchange", () => setMonth(location.hash.slice(1)));
+$("summary-toggle").onclick = () => $("summary").classList.toggle("closed");
+$("cum").onchange = e => { state.cum = e.target.checked; renderChart(state.view); };
+for (const t of ["line", "bar"]) $("t-" + t).onclick = () => {
+  state.type = t; $("t-line").classList.toggle("on", t === "line"); $("t-bar").classList.toggle("on", t === "bar"); renderChart(state.view);
+};
+$("thead").onclick = e => {
+  const th = e.target.closest("th"); if (!th) return;
+  const k = th.dataset.k;
+  if (state.sortKey === k) state.sortDir *= -1; else { state.sortKey = k; state.sortDir = k === "name" ? 1 : -1; }
+  renderTable(state.view);
+};
+$("csv").onclick = csvDownload;
+setMonth(location.hash.slice(1));
+</script>
+</body>
+</html>

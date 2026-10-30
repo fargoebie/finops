@@ -151,7 +151,7 @@ Pull GCP Budget API data or manually maintain budget targets as dbt seed files (
 
 ### Label / Tag Compliance
 
-The `x_Labels` and `x_ProjectLabels` arrays are already present in `stg_focus_billing`. A mart that unnests those arrays and tests for required label keys (e.g. `env`, `team`, `cost-centre`) would surface the percentage of spend with each required label applied, broken down by project and service. This enables a label compliance score without any new data ingestion.
+The `x_Labels` and `x_ProjectLabels` arrays are in the FOCUS export (and `finops_history.focus_billing_history`) but are not carried into `stg_focus_billing`, which drops them for cost. A model that reads them from the source tables, unnests them and tests for required label keys (e.g. `env`, `team`, `cost-centre`) would surface the percentage of spend with each required label applied, broken down by project and service. This enables a label compliance score without any new data ingestion.
 
 **Status: Idea / Not started**
 
@@ -177,7 +177,7 @@ The ideas below are drawn from feature analysis of Finout, Ternary, ProsperOps, 
 
 **Use Case**: GCP labels are applied at resource creation time and are often incomplete, inconsistent, or controlled by teams who cannot be forced to relabel retroactively. Virtual cost allocation rules let a FinOps team define mapping logic — e.g., "any charge in project `data-platform-prod` with service `BigQuery` belongs to team `Analytics`" — and apply that mapping retroactively to all historical billing rows, without touching GCP labels or requiring infrastructure changes.
 
-**GCP Implementation**: Add a dbt seed file `seeds/cost_allocation_rules.csv` with columns `rule_priority`, `match_project_id_pattern`, `match_service_name_pattern`, `match_label_key`, `match_label_value`, `assigned_team`, `assigned_cost_centre`, `assigned_product`. Build an intermediate model `int_cost_allocation.sql` that LEFT JOINs `stg_focus_billing` rows against the seed using regex matching (BigQuery `REGEXP_CONTAINS`) in priority order, falling back to existing `x_Labels` values when no rule matches. Propagate `assigned_team` and `assigned_cost_centre` into `fct_monthly_showback` as additional grouping dimensions. Rules are updated by editing the seed and running `dbt seed && dbt run --select int_cost_allocation+`.
+**GCP Implementation**: Add a dbt seed file `seeds/cost_allocation_rules.csv` with columns `rule_priority`, `match_project_id_pattern`, `match_service_name_pattern`, `match_label_key`, `match_label_value`, `assigned_team`, `assigned_cost_centre`, `assigned_product`. Build an intermediate model `int_cost_allocation.sql` that LEFT JOINs `stg_focus_billing` rows against the seed using regex matching (BigQuery `REGEXP_CONTAINS`) in priority order, falling back to `x_Labels` values (from the source tables; `stg_focus_billing` does not carry labels) when no rule matches. Propagate `assigned_team` and `assigned_cost_centre` into `fct_monthly_showback` as additional grouping dimensions. Rules are updated by editing the seed and running `dbt seed && dbt run --select int_cost_allocation+`.
 
 **Status: Idea / Not started**
 

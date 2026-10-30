@@ -12,7 +12,7 @@ Architecture and instructions live in [AGENTS.md](AGENTS.md). Deferred/future wo
   gcloud auth application-default login
   ```
   dbt and direct `bq` calls both use ADC — one without the other will fail.
-- `gcloud auth login` resets the active project to `demogcp-terra2021`. Reset immediately:
+- `gcloud auth login` resets the active project (seen as `demogcp-terra2021`, and as `gcp-coe-sandbox` since 2026-10). Reset immediately:
   ```bash
   gcloud config set project gcp-coe-492507
   ```
@@ -32,7 +32,9 @@ Architecture and instructions live in [AGENTS.md](AGENTS.md). Deferred/future wo
 - Multi-customer **reseller** export: `BillingAccountType` = `Resold` (107 customer accounts) or `Reseller` (1 — Terralogiq itself, a GCP + GMP partner).
 - **Credits are embedded in usage rows** (`x_Credits`, UNNEST in `int_credits`), NOT as separate charge rows. `BilledCost` and `EffectiveCost` are already net of credits (`billed = contracted + credits`; `effective = billed` in this data). Never subtract credits from billed a second time (see "Cost & discount semantics" in AGENTS.md).
 - Everything is **IDR**; USD is derived row-level (`cost / x_CurrencyConversionRate ≈ 17,922`).
-- Only **one month** of data so far (export enabled ~2026-07-25; data = 2026-07). MoM/QoQ comparisons return NULL until August arrives. FOCUS exports do not backfill months prior to enablement.
+- **FOCUS coverage starts 2026-07-26** (complete days). Before that: 07-01 has month-start Tax/Adjustment rows only, 07-02..07-19 is empty, 07-20..07-25 is partial. July totals are not comparable to later months. FOCUS does not backfill.
+- **Older history** is in the detailed export `terralogiq-billing-export-new.tes_billing_export.gcp_billing_export_resource_v1_01A09A_A37EA6_F0AC6C` (asia-southeast1, gap-free from 2025-08-28). It reconciles with FOCUS to < Rp 0.0001 per account×month×service on completed days. Mapping: `cost_at_list`→ListCost, `cost`→ContractedCost, `cost + SUM(credits.amount)`→BilledCost. It can't be joined in one query with asia-southeast2 data. Backfill plan: [docs/plans/focus-history-backfill.md](docs/plans/focus-history-backfill.md).
+- The most recent ~2 days are still being revised in both exports. Exclude them from reconciliations.
 
 ---
 
@@ -60,6 +62,18 @@ Lessons from a 6-bug audit — don't repeat these:
 - Metabase v0.63, 24-col grid. Dashcards are placed/sized via `PUT /api/dashboard/:id`.
 - **Currency toggle:** implemented via a `{{currency}}` template tag (IDR default). Percent columns: SQL already outputs the value ×100 — format as **decimal + "%" suffix**, NOT `percent` number_style (which multiplies by 100 again, producing "2100%").
 - Live dashboards are in the **"Terralogiq BOD"** collection (dashboards 7–10). They query the marts live — a `dbt run` refreshes them without rebuilding the dashboards.
+
+---
+
+## FOCUS history backfill (2026-10-30)
+
+Plan and evidence: [docs/plans/focus-history-backfill.md](docs/plans/focus-history-backfill.md).
+
+- `stg_focus_billing` = `finops_history.focus_billing_history` (< `focus_cutover_date`, var in `dbt_project.yml`, `2026-07-26`) UNION ALL live FOCUS (>=). Don't deploy to the VM before the history table exists.
+- Cross-region `bq cp`: don't pass `--location` ("Not found: Dataset"); it prompts interactively, so use `-n`.
+- `_PARTITIONTIME` pruning is not available on the detailed export, so a filtered scan still reads far more than expected; copy the raw table first, then convert.
+- Rebuild: follow `tools/history_backfill/README.md` (`01_copy.sh`, `02_convert.sql`, `check_schema.py`), then `dbt build`; `assert_history_matches_focus_overlap` must pass.
+- Open: FOCUS partitions age out from 2028-07-25.
 
 ---
 

@@ -81,8 +81,10 @@ cmd_profiles() {
   gcloud compute ssh "${VM_NAME}" \
     --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
     --command="mkdir -p /opt/finops/dbt && \
-printf 'finops:\n  target: prod\n  outputs:\n    prod:\n      type: bigquery\n      method: oauth\n      project: ${out_project}\n      dataset: finops_dbt\n      location: asia-southeast2\n      timeout_seconds: 300\n      threads: 4\n' > /opt/finops/dbt/profiles.yml && \
+printf 'finops:\n  target: prod\n  outputs:\n    prod:\n      type: bigquery\n      method: oauth\n      project: ${out_project}\n      dataset: finops_dbt\n      location: asia-southeast2\n      timeout_seconds: 300\n      threads: 4\n      maximum_bytes_billed: 150000000000\n    full_refresh:\n      type: bigquery\n      method: oauth\n      project: ${out_project}\n      dataset: finops_dbt\n      location: asia-southeast2\n      timeout_seconds: 3600\n      threads: 4\n      maximum_bytes_billed: 1500000000000\n' > /opt/finops/dbt/profiles.yml && \
 printf 'DBT_BILLING_PROJECT_ID=terra-coe-finops\nDBT_BILLING_DATASET=gcp_billing_immutable_01A09A_A37EA6_F0AC6C_asia_southeast2\nDBT_FOCUS_TABLE=gcp_billing_export_focus_01A09A_A37EA6_F0AC6C\nDBT_OUTPUT_DATASET=finops_dbt\nDBT_OUTPUT_PROJECT_ID=${out_project}\n' > /opt/finops/dbt/.env && \
+  # maximum_bytes_billed is a per-query spend cap: 150 GB for the nightly target (prod),
+  # 1.5 TB for the one-off full_refresh target (dbt run --full-refresh --target full_refresh).
 echo 'profiles.yml and .env written'"
 }
 
@@ -119,7 +121,7 @@ cmd_dbt_run() {
   require_auth
   gcloud compute ssh "${VM_NAME}" \
     --zone="${ZONE}" --tunnel-through-iap --project="${PROJECT_ID}" \
-    --command="cd /opt/finops/dbt && dbt run --profiles-dir . 2>&1 | tail -30"
+    --command="cd /opt/finops/dbt && flock -n /var/lock/finops-dbt.lock dbt run --profiles-dir . 2>&1 | tail -30; [ \${PIPESTATUS[0]} -eq 0 ] || echo 'dbt run failed, or another run holds /var/lock/finops-dbt.lock'"
 }
 
 cmd_sync_secrets() {

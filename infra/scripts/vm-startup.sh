@@ -67,8 +67,18 @@ gcloud secrets versions access latest \
 chmod 600 /opt/finops/metabase-bq-key.json
 
 # ── dbt daily cron ───────────────────────────────────────────────────────────
-CRON_LINE="0 6 * * * root set -a && source /opt/finops/dbt/.env && set +a && cd /opt/finops/dbt && /usr/local/bin/dbt deps --profiles-dir . && /usr/local/bin/dbt run --profiles-dir . >> /var/log/dbt-cron.log 2>&1"
-if ! grep -qF "dbt run" /etc/cron.d/finops-dbt 2>/dev/null; then
+# Nightly `dbt run` is incremental: stg_focus_billing appends the FOCUS export days that
+# have closed (2 days old) and the int/mart tables rebuild from it
+# (docs/plans/dbt-cost-materialization.md). Tests stay out of cron. flock stops two runs
+# overlapping: two concurrent appends would load the same export days twice.
+# One-off full rebuild (about 1.4 TB billed; needs the full_refresh target's 1.5 TB
+# per-query cap, the default prod target caps at 150 GB):
+#   cd /opt/finops/dbt && set -a && source .env && set +a && \
+#     flock -n /var/lock/finops-dbt.lock dbt run --full-refresh --target full_refresh --profiles-dir .
+# After an outage of more than about two weeks the incremental catch-up can exceed the 150 GB
+# cap; run it once on the bigger cap, same command without --full-refresh.
+CRON_LINE="0 6 * * * root set -a && source /opt/finops/dbt/.env && set +a && cd /opt/finops/dbt && /usr/local/bin/dbt deps --profiles-dir . && /usr/bin/flock -n /var/lock/finops-dbt.lock /usr/local/bin/dbt run --profiles-dir . >> /var/log/dbt-cron.log 2>&1"
+if ! grep -qF "flock -n /var/lock/finops-dbt.lock" /etc/cron.d/finops-dbt 2>/dev/null; then
   echo "${CRON_LINE}" > /etc/cron.d/finops-dbt
   chmod 0644 /etc/cron.d/finops-dbt
 fi

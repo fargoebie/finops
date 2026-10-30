@@ -9,7 +9,7 @@ select
     charge_month,
     credit_type,
     billing_currency,
-    count(*)                            as credit_line_count,
+    sum(row_count)                      as credit_line_count,
     sum(credit_amount)                  as total_credit_amount
 
 from {{ ref('int_credits') }}

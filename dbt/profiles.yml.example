@@ -11,3 +11,16 @@ finops:
       location: US
       timeout_seconds: 300
       threads: 4
+      # Per-query spend cap (150 GB): a query that would bill more fails without charge.
+      maximum_bytes_billed: 150000000000
+    # One-off rebuilds only: dbt run --full-refresh --target full_refresh
+    full_refresh:
+      type: bigquery
+      method: oauth
+      project: "YOUR_GCP_PROJECT_ID"
+      dataset: dbt_staging
+      location: US
+      timeout_seconds: 3600
+      threads: 4
+      # Per-query spend cap (1.5 TB); stg_focus_billing's full rebuild is the largest query.
+      maximum_bytes_billed: 1500000000000

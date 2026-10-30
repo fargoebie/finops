@@ -6,9 +6,16 @@
 #   3. verify row count and SUM(cost) of the copy against the source, each query in its own region
 #
 # The raw copy is kept on purpose: 02_convert.sql reads it, and a rebuild needs no second copy.
-# The source table is LIVE (rows are appended daily), so the comparison is limited to partitions
-# strictly before the day the copy was made; those partitions no longer change.
-# Verification scans only the cost column: about 6 GB per side.
+# The detailed source is LIVE (rows are appended daily), so by default the comparison is limited to
+# partitions strictly before the day the copy was made; those partitions no longer change.
+# VERIFY_FULL=1 compares the whole table instead: use it for a frozen source, or one that is not
+# ingestion-time partitioned (the _PARTITIONTIME filter does not apply to it).
+# Verification scans only the cost column: about 6 GB per side for the detailed export.
+#
+# Second source (frozen standard export, covers 2025-01 -> 2025-08 in the history table):
+#   SRC_DATASET=tes_billing_export_try \
+#   SRC_TABLE=gcp_billing_export_v1_01A09A_A37EA6_F0AC6C_copy \
+#   RAW_TABLE=standard_export_raw VERIFY_FULL=1 tools/history_backfill/01_copy.sh
 #
 # Re-running is safe: an existing dataset or copy is kept and just re-verified.
 # Delete the copy yourself (bq rm -t ...) if you really want a fresh one.
@@ -24,6 +31,7 @@ source "${SCRIPT_DIR}/../../infra/scripts/env.sh"
 HISTORY_DATASET="${HISTORY_DATASET:-finops_history}"
 HISTORY_LOCATION="${HISTORY_LOCATION:-${REGION}}"          # asia-southeast2
 RAW_TABLE="${RAW_TABLE:-resource_export_raw}"
+VERIFY_FULL="${VERIFY_FULL:-0}"                             # 1 = verify the whole table, no partition filter
 
 SRC_PROJECT="${SRC_PROJECT:-terralogiq-billing-export-new}"
 SRC_DATASET="${SRC_DATASET:-tes_billing_export}"
@@ -60,19 +68,26 @@ fi
 if bqp show "${DST_BQ}" >/dev/null 2>&1; then
   echo "Copy exists, skipping bq cp: ${DST_BQ}"
 else
-  echo "Copying ${SRC_BQ} -> ${DST_BQ} (cross-region, 915 GB logical / ~30 GB physical)"
+  echo "Copying ${SRC_BQ} -> ${DST_BQ} (cross-region)"
   bqp cp -n "${SRC_BQ}" "${DST_BQ}"
 fi
 
 # --- 3. verify ----------------------------------------------------------------------------
-# Cutoff = UTC date the copy table was created. Partitions before it were closed when it ran.
-created_ms="$(bqp show --format=json "${DST_BQ}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["creationTime"])')"
-cutoff="$(python3 -c 'import datetime,sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1])/1000, datetime.timezone.utc).date())' "${created_ms}")"
-echo "Verifying partitions before ${cutoff} (UTC date of the copy)"
+# Default: cutoff = UTC date the copy table was created. Partitions before it were closed when it ran.
+# VERIFY_FULL=1: no cutoff, the whole table is compared.
+if [[ "${VERIFY_FULL}" == "1" ]]; then
+  where_sql=""
+  echo "Verifying the whole table (VERIFY_FULL=1)"
+else
+  created_ms="$(bqp show --format=json "${DST_BQ}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["creationTime"])')"
+  cutoff="$(python3 -c 'import datetime,sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1])/1000, datetime.timezone.utc).date())' "${created_ms}")"
+  where_sql=" WHERE _PARTITIONTIME < TIMESTAMP('${cutoff}')"
+  echo "Verifying partitions before ${cutoff} (UTC date of the copy)"
+fi
 
 # Exact comparison: CAST to NUMERIC makes the sum order-independent.
 check_sql() {
-  printf "SELECT COUNT(*) AS n, CAST(SUM(CAST(cost AS NUMERIC)) AS STRING) AS cost_sum FROM \`%s\` WHERE _PARTITIONTIME < TIMESTAMP('%s')" "$1" "${cutoff}"
+  printf "SELECT COUNT(*) AS n, CAST(SUM(CAST(cost AS NUMERIC)) AS STRING) AS cost_sum FROM \`%s\`%s" "$1" "${where_sql}"
 }
 run_check() {  # $1 = location, $2 = table (SQL syntax); prints "n,cost_sum"
   bqp --location="$1" query --quiet --nouse_legacy_sql --format=csv "$(check_sql "$2")" | tail -n 1

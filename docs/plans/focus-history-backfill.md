@@ -1,6 +1,6 @@
 # Plan: FOCUS history backfill (Jan 2026 → today)
 
-Status: **executed 2026-10-30**; steps 2-7 done, step 8 docs done. Open items listed in the handoff (Nanda READER grant, `int_customer_map` nondeterminism, `fct_credit_runway` windows, 2028 partition expiry). No Beads DB in this repo, so this file is the tracker and the handoff.
+Status: **executed 2026-10-30**; steps 2-7 done, step 8 docs done. Only open item: 2028 FOCUS partition expiry (see handoff). Nanda grant, `int_customer_map` fix and `fct_credit_runway` check done 2026-10-30. No Beads DB in this repo, so this file is the tracker and the handoff.
 
 ## Goal
 
@@ -137,7 +137,12 @@ BRI GCP 5 (`01319C-C0F533-768FB2`) monthly billed, usage only, from the detailed
 
 - **Mart query cost and latency:** staging and marts are views, so the union roughly quadruples the rows scanned per Metabase query. If dashboards slow down, materialize `stg_focus_billing` (or `int_charges`) as a partitioned table.
 - **`terralogiq-billing-export-new` belongs to someone else and feeds their dashboards** (PLN, Pegadaian, BRI, SPE). Treat it as read-only. If it ever disappears, nothing breaks after step 4, because the history is already copied.
-- **Stale assumptions:** any mart logic that assumes data starts in July (MoM NULLs, `fct_credit_runway` windows) needs re-checking with the longer history.
+- **Stale assumptions:** any mart logic that assumes data starts in July (MoM NULLs, `fct_credit_runway` windows) needs re-checking with the longer history. **Checked 2026-10-30:**
+  - MoM is now NULL only for each account's first 2026 month, which is correct.
+  - In `fct_credit_runway`, burn (trailing 7 days), staleness and `is_active` don't depend on the history start.
+  - `applied_to_date_idr` is now *more* accurate. Before the backfill it started at 07-26.
+  - Only Migration Credit 7 and one Rp 0 sales credit began before history starts (2026-01-01). Both ended in Jan and neither has a seeded total, so no runway figure is affected.
+  - No credit ID spans more than one billing account, so the join on `credit_id` alone is safe.
 
 ## Handoff: resume here
 
@@ -154,7 +159,6 @@ BRI GCP 5 (`01319C-C0F533-768FB2`) monthly billed, usage only, from the detailed
 - **Seeds:** 17 churned Resold accounts added to `customer_accounts.csv`, 21 promotion credits to `credit_programs.csv` (clears the two warnings from the longer history).
 - **Deployment order:** don't deploy the dbt changes to the VM before `focus_billing_history` exists; `stg_focus_billing` fails without it.
 - **Open items:**
-  - `fct_credit_runway.applied_to_date_idr` now sums observed history back to 2026-01; check the runway/burn windows still behave as intended.
   - FOCUS export partitions expire after 730 days; rows start aging out 2028-07-25, so the history table will need to absorb them.
 - **Auth:** gcloud and ADC expire about hourly. The user runs `! gcloud auth login` (and `! gcloud auth application-default login` for dbt). Always pass `--project_id=gcp-coe-492507` to `bq`.
 - **Cross-region:** a single query can't join `terralogiq-billing-export-new` (asia-southeast1) with anything in asia-southeast2, including `finops_dbt.billing_accounts`. Join results in Python.

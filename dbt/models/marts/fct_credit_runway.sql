@@ -8,8 +8,6 @@
 -- Rows with NULL total_amount_idr / end_date are simply awaiting transcription;
 -- burn and staleness still work without them.
 
-{{ config(materialized='view') }}
-
 with bounds as (
     -- Burn and projections use complete days only (the export's final day is
     -- always partial). Staleness is measured against the latest day present,

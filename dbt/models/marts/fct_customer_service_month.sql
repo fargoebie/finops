@@ -3,8 +3,6 @@
 -- Measures: effective/billed IDR+USD, gross IDR.
 -- MoM LAG partitioned by customer_id × platform × service_name.
 
-{{ config(materialized='view') }}
-
 with charges as (
     select
         billing_account_id,
@@ -35,25 +33,27 @@ select
     c.net_cost_idr,
     c.effective_cost_usd,
     c.net_cost_usd,
-    -- MoM: previous month net cost per customer × platform × service
+    -- MoM: previous month net cost per billing account × platform × service.
+    -- Per account, not per customer: a customer with several accounts would
+    -- otherwise LAG onto a sibling account and fabricate deltas.
     LAG(c.net_cost_idr) OVER (
-        PARTITION BY m.customer_id, c.platform, c.service_name ORDER BY c.charge_month
+        PARTITION BY c.billing_account_id, c.platform, c.service_name ORDER BY c.charge_month
     ) as mom_prev_net_cost_idr,
     LAG(c.net_cost_usd) OVER (
-        PARTITION BY m.customer_id, c.platform, c.service_name ORDER BY c.charge_month
+        PARTITION BY c.billing_account_id, c.platform, c.service_name ORDER BY c.charge_month
     ) as mom_prev_net_cost_usd,
     c.net_cost_idr - LAG(c.net_cost_idr) OVER (
-        PARTITION BY m.customer_id, c.platform, c.service_name ORDER BY c.charge_month
+        PARTITION BY c.billing_account_id, c.platform, c.service_name ORDER BY c.charge_month
     ) as mom_delta_idr,
     c.net_cost_usd - LAG(c.net_cost_usd) OVER (
-        PARTITION BY m.customer_id, c.platform, c.service_name ORDER BY c.charge_month
+        PARTITION BY c.billing_account_id, c.platform, c.service_name ORDER BY c.charge_month
     ) as mom_delta_usd,
     SAFE_DIVIDE(
         c.net_cost_idr - LAG(c.net_cost_idr) OVER (
-            PARTITION BY m.customer_id, c.platform, c.service_name ORDER BY c.charge_month
+            PARTITION BY c.billing_account_id, c.platform, c.service_name ORDER BY c.charge_month
         ),
         NULLIF(LAG(c.net_cost_idr) OVER (
-            PARTITION BY m.customer_id, c.platform, c.service_name ORDER BY c.charge_month
+            PARTITION BY c.billing_account_id, c.platform, c.service_name ORDER BY c.charge_month
         ), 0)
     ) as mom_delta_pct
 from charges c

@@ -1,4 +1,8 @@
+{{ config(tags=['reconciliation']) }}
+
 -- Reconciliation: the detailed-export conversion must reproduce the live FOCUS export.
+-- Tagged `reconciliation` (about 95 GB per run): exclude it from routine runs with
+-- `dbt test --exclude tag:reconciliation`; run it on demand with `dbt test --select tag:reconciliation`.
 -- focus_billing_history also holds rows from the cutover to overlap_end, where the live FOCUS export
 -- has data too. stg_focus_billing never reads those rows; they are a fixture. If the converted rows agree
 -- with FOCUS, the pre-cutover rows that only the conversion covers can be trusted.
@@ -23,8 +27,8 @@
 {% set cutover = var('focus_cutover_date') %}
 {% set overlap_end = '2026-10-01' %}
 
-{% if not ('2026-01-01' <= cutover < overlap_end) %}
-    {{ exceptions.raise_compiler_error("focus_cutover_date (" ~ cutover ~ ") must satisfy 2026-01-01 <= cutover < " ~ overlap_end ~ " (the history window); otherwise the overlap window is empty or inverted and this test would pass vacuously.") }}
+{% if not ('2025-01-01' <= cutover < overlap_end) %}
+    {{ exceptions.raise_compiler_error("focus_cutover_date (" ~ cutover ~ ") must satisfy 2025-01-01 <= cutover < " ~ overlap_end ~ " (the history window); otherwise the overlap window is empty or inverted and this test would pass vacuously.") }}
 {% endif %}
 
 with hist as (

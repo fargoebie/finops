@@ -4,8 +4,6 @@
 -- Credits split into cud/sud/promo/free_tier/other (IDR).
 -- MoM deltas via LAG partitioned by customer_id × platform.
 
-{{ config(materialized='view') }}
-
 with charges as (
     select
         billing_account_id,

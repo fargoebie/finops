@@ -1,21 +1,30 @@
 # FOCUS history backfill
 
-Gives the marts a gap-free history from **2026-01-01** by converting Terralogiq's *detailed*
-(resource-level) billing export into the exact schema of the *FOCUS* export, which only has complete
-data from 2026-07-26. Plan and rationale: `docs/plans/focus-history-backfill.md`.
+Gives the marts a gap-free history from **2025-01-01** by converting Terralogiq's billing exports into the exact
+schema of the *FOCUS* export, which only has complete data from 2026-07-26: the *detailed* (resource-level)
+export for 2025-09-01 onward and a frozen *standard* export for 2025-01-01 to 2025-08-31.
+Plan and rationale: `docs/plans/focus-history-backfill.md`.
 
-**Status:** copy and convert executed 2026-10-30. `resource_export_raw` has 708,864,848 rows and matched the
-source on SUM(cost). `focus_billing_history` has 479,594,030 rows. `dbt build` gave PASS=48, WARN=2, ERROR=0.
+**Status:** copy and convert executed 2026-10-30; extended back to 2025-01-01 the same day.
+`resource_export_raw` has 708,864,848 rows and matched the source on SUM(cost). `standard_export_raw` has
+110,599,166 rows and matched the source on rows and SUM(cost) over the whole table.
+`focus_billing_history` has 630,472,288 rows (2026 part unchanged: 479,594,030 rows, same sums).
+`dbt build` after the extension: PASS=48, WARN=2, ERROR=0 (50 nodes). The overlap test passes. The two WARNs are
+`assert_no_unmapped_resold_accounts` (27 accounts) and `assert_all_promo_credits_seeded` (25 credits); every one of
+them exists only in 2025 (no row from 2026-01-01), none is seeded yet. `dbt build` scanned ~7.1 TB: the marts are
+views, so each of the ~40 data tests rescans the whole history table (150-260 GB each).
 
 ```
 terralogiq-billing-export-new.tes_billing_export.gcp_billing_export_resource_v1_01A09A_A37EA6_F0AC6C  (asia-southeast1, live, 915 GB logical)
-        │  01_copy.sh  (bq cp, cross-region, kept)
+terralogiq-billing-export-new.tes_billing_export_try.gcp_billing_export_v1_01A09A_A37EA6_F0AC6C_copy  (asia-southeast1, frozen 2025-10-07, 65 GB logical)
+        │  01_copy.sh  (bq cp, cross-region, kept; the standard copy runs with VERIFY_FULL=1)
         ▼
 gcp-coe-492507:finops_history  (asia-southeast2, PHYSICAL storage billing)
-  resource_export_raw           raw copy, kept so a rebuild needs no second copy
-        │  02_convert.sql
+  resource_export_raw           detailed export, used for usage >= 2025-09-01   ({{SRC_DETAIL}})
+  standard_export_raw           standard export, used for 2025-01-01 <= usage < 2025-09-01   ({{SRC_STANDARD}})
+        │  02_convert.sql  (one CREATE, one mapping body; `src` CTE unions the two at 2025-09-01)
         ▼
-  focus_billing_history   2026-01-01 <= usage_start_time < 2026-10-01   frozen
+  focus_billing_history   2025-01-01 <= usage_start_time < 2026-10-01   frozen
                           rows < cutover (2026-07-26): read by stg_focus_billing
                           rows >= cutover: overlap the live FOCUS export, TEST FIXTURE ONLY
         │
@@ -38,9 +47,10 @@ Order matters; each step is safe to stop after.
 |---|------|---------|---------------|
 | 0 | **Pre-flight (needs the user)**: confirm `tes_billing_export` is the export configured in Billing, not a one-off copy (plan step 1). | | |
 | 1 | Schema check (dry-run only). Must print `OK` and exit 0. | `python3 tools/history_backfill/check_schema.py` | free |
-| 2 | Create dataset, copy raw table, verify | `tools/history_backfill/01_copy.sh` | cross-region transfer for ~30 GB physical; verify scans ~6 GB per side |
-| 3 | Build the history table | see below | one statement, scans ~0.88 TB (dry-run) |
-| 4 | dbt | `cd dbt && dbt build` | `assert_history_matches_focus_overlap` must pass; it scans most of the FOCUS export (~22 GB) |
+| 2 | Create dataset, copy both raw tables, verify | `tools/history_backfill/01_copy.sh`, then the same with `SRC_DATASET=tes_billing_export_try SRC_TABLE=gcp_billing_export_v1_01A09A_A37EA6_F0AC6C_copy RAW_TABLE=standard_export_raw VERIFY_FULL=1` | cross-region transfer for ~30 GB + ~4 GB physical; verify scans ~6 GB per side (detailed), the cost column of 65 GB (standard) |
+| 3 | Build the history table | see below | one statement, scans ~0.94 TB (dry-run: 944.7 GB) |
+| 3b | One-off seam check of 2025-09-01 (must print `pass = true` on both rows; result recorded below) | `bq --project_id=gcp-coe-492507 --location=asia-southeast2 query --nouse_legacy_sql < tools/history_backfill/03_seam_check_2025.sql` | scans ~12 GB |
+| 4 | dbt | `cd dbt && dbt build` | `assert_history_matches_focus_overlap` must pass; the overlap test itself scans most of the FOCUS export (~22 GB), but the whole build scanned ~7.1 TB on 2026-10-30 (the marts are views and ~40 data tests each rescan the history table) |
 | 5 | Grant READER on `finops_history` to human analysts (e.g. Nanda). The VM SA should already read it through its project-level `bigquery.dataViewer` (AGENTS.md B3); confirm. | | |
 
 **Deployment order.** The dbt changes (`stg_focus_billing`, `sources.yml`) reference the history table. Merge or
@@ -50,14 +60,21 @@ fails at `stg_focus_billing` and takes the downstream DAG (and the VM's daily cr
 Step 3:
 
 ```bash
-sed 's|{{SRC}}|`gcp-coe-492507.finops_history.resource_export_raw`|g' tools/history_backfill/02_convert.sql \
+sed -e 's|{{SRC_DETAIL}}|`gcp-coe-492507.finops_history.resource_export_raw`|g' \
+    -e 's|{{SRC_STANDARD}}|`gcp-coe-492507.finops_history.standard_export_raw`|g' \
+    tools/history_backfill/02_convert.sql \
   | bq --project_id=gcp-coe-492507 --location=asia-southeast2 query --nouse_legacy_sql
 ```
 
 `CREATE OR REPLACE` makes step 3 re-runnable; it is also the way to rebuild after Google posts late
-corrections to pre-cutover months (re-run `01_copy.sh` against a fresh copy first, after `bq rm -t` of the old one).
-The raw table's `usage_start_time` cannot prune (partitions are by ingestion time), so the statement scans
-the whole copy: 882 GB in the dry-run.
+corrections to pre-cutover months (re-run `01_copy.sh` against a fresh copy first, after `bq rm -t` of the old one;
+the standard export is frozen, so only the detailed copy has late corrections to pick up).
+The raw tables' `usage_start_time` cannot prune (partitions are by ingestion time), so the statement scans
+both whole copies: 944.7 GB in the dry-run (882 GB detailed + 65 GB standard).
+
+`01_copy.sh` runs `bq cp` through a cross-region confirmation prompt (`Proceed with cross-region copy? [y/N]`),
+which reads stdin: pipe `echo y |` into it when it runs unattended. `VERIFY_FULL=1` drops the
+`_PARTITIONTIME < cutoff` filter and compares the whole table; use it for the frozen standard copy.
 
 **Auth.** `gcloud auth login` (for `bq`) and `gcloud auth application-default login` (for dbt) expire about
 hourly. Every `bq` call passes `--project_id=gcp-coe-492507`. Required: Data Viewer on the source dataset; on
@@ -123,8 +140,8 @@ table is the reference (`check_schema.py` enforces name, type, mode, order and n
 | `PublisherName` | `seller_name`, with `'Google'`→`'Google Cloud'`; NULL stays NULL | yes |
 | `RegionId` | `location.region` (`''` vs NULL preserved) | yes |
 | `RegionName` | lookup on `location.region` built from the 40 named pairs FOCUS emitted 2026-07-26..10-29; unnamed or `''` regions → NULL, as FOCUS | yes for those regions; **stale for regions FOCUS names later** |
-| `ResourceId` | `resource.global_name` | yes |
-| `ResourceName` | `resource.name` | yes |
+| `ResourceId` | `resource.global_name`. **NULL for 2025-01..08** (standard export has no resource grain) | yes |
+| `ResourceName` | `resource.name`. **NULL for 2025-01..08**, as above | yes |
 | `ServiceName` | `service.description` | yes |
 | `SkuId` | `sku.id` only when `cost_type='regular'`; NULL on tax/adjustment/rounding rows (FOCUS leaves it NULL; the detailed export has an id) | yes |
 | `SkuPriceId` | `CONCAT('SKU ID: ', sku.id, ', Price Tier Start Amount: ', CAST(price.tier_start_amount AS STRING))` | yes |
@@ -147,7 +164,7 @@ table is the reference (`check_schema.py` enforces name, type, mode, order and n
 | `PricingCurrencyEffectiveCost` | same as `BilledCost` | yes |
 | `PricingCurrencyListUnitPrice` | `price.list_price` | yes |
 | `BillingAccountType` | not in the detailed export. Account `01A09A-A37EA6-F0AC6C` (the reseller itself): `'Reseller'` on usage rows, NULL on tax/adjustment/rounding rows; every other account: `'Resold'`. Data wins over Google's doc, which says "Resold or blank" | yes |
-| `x_SubscriptionInstanceId` | `subscription.instance_id` | yes |
+| `x_SubscriptionInstanceId` | `subscription.instance_id`. **NULL for 2025-01..08**, as above | yes |
 | `x_PriceEffectivePriceDefault` | `price.effective_price_default` | yes |
 | `x_PriceListPriceConsumptionModel` | `price.list_price_consumption_model` | yes |
 | `x_CostAtEffectivePriceDefault` | `CAST(cost_at_effective_price_default AS NUMERIC)` | yes |
@@ -158,9 +175,74 @@ table is the reference (`check_schema.py` enforces name, type, mode, order and n
 Detailed-export columns not carried over: `consumption_model.applied_subscription_instance_id`,
 `invoice.publisher_type`, `transaction_type` (FOCUS has no counterpart).
 
+## 2025-01 to 2025-08: the standard export, and the seam
+
+`src` in `02_convert.sql` unions two sources at **2025-09-01 00:00 UTC** and the one mapping body above runs on the
+result. The standard export (`tes_billing_export_try.gcp_billing_export_v1_..._copy`, snapshot 2025-10-07, usage
+2020-03-27 to 2025-10-06, no gaps) has 76 field paths; the detailed export's 82 minus `resource.{name,global_name}`,
+`subscription.instance_id` and `consumption_model.applied_subscription_instance_id`. The standard branch pads
+those with typed NULLs (`resource` as `STRUCT<name STRING, global_name STRING>`, **name first**, the detailed table's
+order). The other 26 top-level columns are identical to the detailed table in name, type, mode and nested field
+order, apart from the padded `consumption_model` field (checked in both directions; the UNION ALL dry-run alone does not catch a swap of two STRING fields).
+Nothing here has a FOCUS counterpart to compare against: the live FOCUS export starts 2026-07-25, so 2025 rows
+are validated only against the detailed export, at the seam.
+
+Findings on the standard export's 2025-01..08 rows (checked in asia-southeast1 before the build):
+
+* `cost_at_list IS NULL` only on `tax` (5,674 rows) and `rounding_error` (16 rows), both service `Invoice`. No usage
+  row has a NULL list cost, so Discount % has a denominator for all 2025 usage.
+* **No price detail before mid-June 2025.** `price.*`, `cost_at_effective_price_default`,
+  `cost_at_list_consumption_model` and `consumption_model.id` are NULL on 100% of usage rows for 2025-01..05, 78.2%
+  of 2025-06 and 0% from 2025-07 (35.3% of all Jan-Aug usage rows). In the converted table that is
+  `ContractedUnitPrice`, `ListUnitPrice`, `PricingCurrency*UnitPrice`, `x_PriceEffectivePriceDefault`,
+  `x_PriceListPriceConsumptionModel`, `x_CostAtEffectivePriceDefault`, `x_CostAtListConsumptionModel`,
+  `x_ConsumptionModelId`, `x_ConsumptionModelDescription`, and `SkuPriceId` (its CONCAT needs
+  `price.tier_start_amount`). Cost columns (`ListCost`, `ContractedCost`, `BilledCost`, credits) are complete.
+* Month-start `tax` (291 rows on 2025-08-01 07:00Z, 523 on 2025-09-01 07:00Z) and `rounding_error` rows exist in the
+  standard export for both 2025-08-01 and 2025-09-01. The 2025-08-01 rows enter the table from the standard side,
+  the 2025-09-01 rows from the detailed side.
+* Maps services absent from the GMP list in `stg_focus_billing` (so counted as platform `GCP`): `Navigation API`,
+  `Google Maps Platform - Mobility Billing`, `Places Insights API`, `Google Maps Platform Rides and Deliveries
+  Service`, `Google Maps Platform Air Quality Service`, `Google Maps Platform Solar Service`. All have cost 0 in
+  2025-01..08. Other services matching `API` (Cloud Vision, Gemini, Document AI, BigQuery Storage/Reservation,
+  Dialogflow, Text-to-Speech, Mailgun, SendGrid) are not Maps.
+
+**Seam check (2026-10-30, `03_seam_check_2025.sql`).** September 2025 mapped from `standard_export_raw` against the
+table's September 2025 rows (detailed side), at (billing account, ChargeCategory, ServiceName) on ListCost,
+ContractedCost, BilledCost and total credits, and at (billing account, credit Type) on credit Amount:
+
+| Check | Groups | Missing in standard / table | Groups over 0.01 | Max abs delta |
+|---|---|---|---|---|
+| cost grain | 692 | 0 / 0 | 0 | 0 (list, contracted, billed, credits) |
+| credit grain | 90 | 0 / 0 | 0 | 0 |
+
+Totals are equal on both sides: list 6,373,768,511.44, contracted 6,316,119,458.41, billed 4,254,256,686.69,
+credits -2,061,862,771.72. The query repeats only the seven expressions it needs from `02_convert.sql`; it is a
+one-off, not part of the nightly build.
+
+**Monthly check (2026-10-30).** Row count and `SUM(BilledCost)` of the table equal row count and `SUM(cost + credits)`
+of the source raw table, exactly, for every month 2025-01..2025-12 (standard raw for 01..08, detailed raw for 09..12):
+
+| Month | Rows | SUM(BilledCost) |
+|---|---|---|
+| 2025-01 | 1,712,077 | 3,214,422,496.84 |
+| 2025-02 | 1,575,153 | 3,193,297,601.53 |
+| 2025-03 | 1,801,859 | 3,756,224,900.99 |
+| 2025-04 | 1,881,185 | 3,305,826,710.36 |
+| 2025-05 | 2,248,134 | 3,368,764,161.54 |
+| 2025-06 | 2,219,589 | 3,377,865,119.99 |
+| 2025-07 | 8,898,082 | 4,061,331,145.05 |
+| 2025-08 | 10,667,924 | 4,128,467,495.94 |
+| 2025-09 | 25,728,475 | 4,254,256,686.69 |
+| 2025-10 | 29,290,536 | 5,072,968,255.96 |
+| 2025-11 | 31,535,279 | 4,835,779,806.72 |
+| 2025-12 | 33,319,965 | 5,621,040,342.66 |
+
 ## NULL list
 
-**No FOCUS column is NULL for every row.** Every FOCUS field has a detailed-export source or a derivation.
+**No FOCUS column is NULL for every row of the table.** Every FOCUS field has a detailed-export source or a
+derivation, except that for 2025-01..08 (standard export) `ResourceId`, `ResourceName` and `x_SubscriptionInstanceId`
+are NULL on every row, and the price / consumption-model columns are NULL up to mid-June 2025 (see above).
 Rows where a column is NULL by design, matching FOCUS:
 
 | Column | NULL when | Why |

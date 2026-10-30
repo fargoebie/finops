@@ -16,14 +16,17 @@ sources:
   - name: finops_history
     description: >
       One-time backfill of pre-cutover billing history, converted from the detailed
-      (resource-level) export into the exact FOCUS export schema. Built by
+      (resource-level) export (2025-09 onward) and the frozen standard export (2025-01 to 2025-08)
+      into the exact FOCUS export schema. Built by
       tools/history_backfill/ (see its README). Lives in the dbt project, not the billing project.
     database: "{{ env_var('DBT_PROJECT_ID', env_var('DBT_OUTPUT_PROJECT_ID', 'gcp-coe-492507')) }}"
     schema: finops_history
     tables:
       - name: focus_billing_history
         description: >
-          Frozen. Usage 2026-01-01 up to (excluding) 2026-10-01, same columns as the FOCUS export.
+          Frozen. Usage 2025-01-01 up to (excluding) 2026-10-01, same columns as the FOCUS export.
+          2025-01-01 to 2025-08-31 comes from the standard export: ResourceId, ResourceName and
+          x_SubscriptionInstanceId are NULL there.
           stg_focus_billing reads only ChargePeriodStart < var focus_cutover_date (2026-07-26). Rows from the
           cutover to 2026-10-01 overlap the live FOCUS export and are a test fixture only:
           assert_history_matches_focus_overlap compares them with FOCUS to prove the conversion is exact.

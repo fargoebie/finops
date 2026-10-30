@@ -6,8 +6,9 @@
 -- OWN GCP org (terralogiq.com), so that ancestry is NOT a customer signal — it
 -- just means "hosted by Terralogiq". We null it out (reseller_org, derived from
 -- the Reseller-type account) so those accounts fall to '(unmapped)' until seeded.
-
-{{ config(materialized='view') }}
+--
+-- observed reads int_billing_account_days (every stg_focus_billing row, aggregated per account and
+-- day), not stg_focus_billing, so it sees exactly the accounts and values it did when it read stg.
 
 with seed as (
     select
@@ -34,7 +35,7 @@ observed as (
         -- and any_value could return that NULL and leave reseller_org empty.
         max(billing_account_type)       as billing_account_type,
         max(x_org_ancestor_name)        as x_org_ancestor_name
-    from {{ ref('stg_focus_billing') }}
+    from {{ ref('int_billing_account_days') }}
     group by 1
 ),
 

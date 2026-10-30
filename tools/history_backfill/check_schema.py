@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Dry-run the SELECT in 02_convert.sql and diff its result schema against the FOCUS export's.
 
-Substitutes {{SRC}} (default: the live se1 detailed export), dry-runs the CREATE's SELECT with
-`bq query --dry_run` in the source's region, and compares name / type / mode / order recursively
-against `bq show --schema` of the FOCUS table. Also asserts that dbt var focus_cutover_date lies
+Substitutes {{SRC_DETAIL}} (default: the live se1 detailed export) and {{SRC_STANDARD}} (default: the
+frozen se1 standard export), dry-runs the CREATE's SELECT with `bq query --dry_run` in their region
+(both must be in --location), and compares name / type / mode / order recursively against
+`bq show --schema` of the FOCUS table. The dry-run also fails if the standard branch's padding does not
+match the detailed schema (UNION ALL type error). Also asserts that dbt var focus_cutover_date lies
 inside the SQL's usage_start_time window.
 
 No table is created and nothing is billed beyond the dry-run. Exit 0 = schemas identical.
@@ -19,8 +21,10 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 
-DEFAULT_SRC = ("terralogiq-billing-export-new.tes_billing_export."
-               "gcp_billing_export_resource_v1_01A09A_A37EA6_F0AC6C")
+DEFAULT_SRC_DETAIL = ("terralogiq-billing-export-new.tes_billing_export."
+                      "gcp_billing_export_resource_v1_01A09A_A37EA6_F0AC6C")
+DEFAULT_SRC_STANDARD = ("terralogiq-billing-export-new.tes_billing_export_try."
+                        "gcp_billing_export_v1_01A09A_A37EA6_F0AC6C_copy")
 DEFAULT_FOCUS = ("terra-coe-finops:gcp_billing_immutable_01A09A_A37EA6_F0AC6C_asia_southeast2."
                  "gcp_billing_export_focus_01A09A_A37EA6_F0AC6C")
 
@@ -71,7 +75,7 @@ def diff(a, b, path=""):
 
 def split_creates(sql):
     """-> [(target_table, select_body, where_clause)] for each CREATE ... AS SELECT ... ;"""
-    sql = re.sub(r"--.*$", "", sql, flags=re.M)  # comments may contain ';' and {{SRC}}
+    sql = re.sub(r"--.*$", "", sql, flags=re.M)  # comments may contain ';' and the {{SRC_*}} placeholders
     stmts = [s.strip() for s in re.split(r";\s*$", sql, flags=re.M) if s.strip()]
     out = []
     for s in stmts:
@@ -86,15 +90,20 @@ def split_creates(sql):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--src", default=DEFAULT_SRC, help="source table, project.dataset.table (default: live se1 export)")
-    ap.add_argument("--location", default="asia-southeast1", help="region of --src")
+    ap.add_argument("--src-detail", default=DEFAULT_SRC_DETAIL,
+                    help="detailed export, project.dataset.table (default: live se1 export)")
+    ap.add_argument("--src-standard", default=DEFAULT_SRC_STANDARD,
+                    help="standard export, project.dataset.table (default: frozen se1 copy)")
+    ap.add_argument("--location", default="asia-southeast1", help="region of --src-detail and --src-standard")
     ap.add_argument("--focus", default=DEFAULT_FOCUS, help="FOCUS table, project:dataset.table")
     ap.add_argument("--project", default="gcp-coe-492507", help="billing project for bq")
     ap.add_argument("--sql", default=str(HERE / "02_convert.sql"))
     args = ap.parse_args()
 
     focus = norm(json.loads(bq([f"--project_id={args.project}", "show", "--schema", "--format=json", args.focus])))
-    sql = pathlib.Path(args.sql).read_text().replace("{{SRC}}", f"`{args.src}`")
+    sql = (pathlib.Path(args.sql).read_text()
+           .replace("{{SRC_DETAIL}}", f"`{args.src_detail}`")
+           .replace("{{SRC_STANDARD}}", f"`{args.src_standard}`"))
     creates = split_creates(sql)
     failures = []
 

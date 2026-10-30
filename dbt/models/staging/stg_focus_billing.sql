@@ -1,15 +1,34 @@
--- Staging view over GCP FOCUS billing data.
+-- Staging table over GCP FOCUS billing data.
 -- Renames PascalCase FOCUS columns to snake_case, coalesces nulls on cost/price
 -- columns, and adds charge_date / charge_month for grouping.
 -- x_credits (REPEATED RECORD) is passed through intact for UNNEST in int_credits.
+-- The label/tag arrays (x_Labels, x_SystemLabels, x_ProjectLabels, x_Tags) are not carried: nothing
+-- downstream reads them and they are the widest columns. Query the source tables for them.
 --
 -- Source is a cutover union (var focus_cutover_date, UTC midnight). Each ChargePeriodStart is
 -- served by exactly one source, so nothing is dropped or double counted:
---   ChargePeriodStart <  cutover : finops_history.focus_billing_history, the detailed export
---                                  converted to the FOCUS schema (tools/history_backfill/; frozen)
+--   ChargePeriodStart <  cutover : finops_history.focus_billing_history, the detailed export (2025-09+)
+--                                  and the standard export (2025-01..08) converted to the FOCUS
+--                                  schema (tools/history_backfill/; frozen)
 --   ChargePeriodStart >= cutover : the live FOCUS export
 -- FOCUS rows dated before the cutover (ramp-up days, 2026-07-01 tax rows) are deliberately excluded.
 -- Both sides have identical columns, so SELECT * UNION ALL is position-safe.
+--
+-- Incremental table (docs/plans/dbt-cost-materialization.md). Partitioned by charge_date, clustered by
+-- billing_account_id, service_name. export_day = _PARTITIONDATE of the FOCUS export; NULL on history rows.
+-- Append-only: a FOCUS export partition is loaded once, after it has closed (export_day <=
+-- current_date() - 2, UTC), so dashboards lag the export by about two days.
+--   --full-refresh : history (< cutover) UNION ALL FOCUS (>= cutover) from closed export partitions.
+--   incremental    : appends FOCUS closed export partitions after max(export_day) (merge ON FALSE).
+--                    History is never read or touched. Never run two appends at once (cron uses flock).
+-- A column change here needs --full-refresh (on_schema_change is ignore).
+
+{{ config(
+    materialized='incremental',
+    incremental_strategy='merge',
+    partition_by={'field': 'charge_date', 'data_type': 'date', 'granularity': 'day'},
+    cluster_by=['billing_account_id', 'service_name']
+) }}
 
 select
     BillingAccountId                                         as billing_account_id,
@@ -50,6 +69,7 @@ select
 
     -- Time dimensions
     DATE(ChargePeriodStart)                                  as charge_date,
+    export_day,
     TIMESTAMP_TRUNC(ChargePeriodStart, MONTH)                as charge_month,
     ChargePeriodStart                                        as charge_period_start,
     ChargePeriodEnd                                          as charge_period_end,
@@ -114,16 +134,24 @@ select
     x_ExportTime                                             as x_export_time,
 
     -- Nested/repeated — passed through intact
-    x_Credits                                                as x_credits,
-    x_SystemLabels                                           as x_system_labels,
-    x_Labels                                                 as x_labels,
-    x_ProjectLabels                                          as x_project_labels,
-    x_Tags                                                   as x_tags
+    x_Credits                                                as x_credits
 
 from (
-    select * from {{ source('finops_history', 'focus_billing_history') }}
+{%- if is_incremental() %}
+    {%- set watermark = stg_focus_watermark() %}
+    select *, _PARTITIONDATE as export_day
+    from {{ source('gcp_billing', 'focus_export') }}
+    where _PARTITIONDATE > date '{{ watermark }}'
+      and _PARTITIONDATE <= date_sub(current_date(), interval 2 day)
+      and ChargePeriodStart >= timestamp('{{ var("focus_cutover_date") }}')
+{%- else %}
+    select *, CAST(NULL AS DATE) as export_day
+    from {{ source('finops_history', 'focus_billing_history') }}
     where ChargePeriodStart < timestamp('{{ var("focus_cutover_date") }}')
     union all
-    select * from {{ source('gcp_billing', 'focus_export') }}
-    where ChargePeriodStart >= timestamp('{{ var("focus_cutover_date") }}')
+    select *, _PARTITIONDATE as export_day
+    from {{ source('gcp_billing', 'focus_export') }}
+    where _PARTITIONDATE <= date_sub(current_date(), interval 2 day)
+      and ChargePeriodStart >= timestamp('{{ var("focus_cutover_date") }}')
+{%- endif %}
 ) as focus_billing

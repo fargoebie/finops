@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: int_charges
+    description: >
+      Usage, Purchase and Tax charges from stg_focus_billing, summed to day grain over the
+      dimensions the marts read. Incremental table
+      partitioned by charge_date; each run rebuilds the stg_focus_billing partitions changed since its
+      last build (max(built_at)). Row-level detail is in stg_focus_billing.
+    columns:
+      - name: row_count
+        description: "Number of stg_focus_billing rows summed into this row. Use sum(row_count) for row-count semantics."
+      - name: built_at
+        description: "Start of the build that last rewrote this charge_date partition. max(built_at) is the incremental watermark (macros/incremental_windows.sql)."
+
+  - name: int_credits
+    description: >
+      x_Credits unnested from stg_focus_billing and summed to day grain by credit type, id and full
+      name over the dimensions the marts read.
+      credit_amount is negative. Incremental table partitioned by charge_date, refreshed like int_charges.
+    columns:
+      - name: row_count
+        description: "Number of unnested credit records summed into this row. Use sum(row_count) for row-count semantics."
+      - name: built_at
+        description: "Start of the build that last rewrote this charge_date partition. max(built_at) is the incremental watermark (macros/incremental_windows.sql)."
+
+  - name: int_customer_map
+    description: >
+      One row per billing_account_id with resolved customer identity (seed, then org ancestry, then
+      '(unmapped)'). Built from int_billing_account_days, not stg_focus_billing.
+
+  - name: int_billing_account_days
+    description: >
+      One row per billing_account_id × charge_date over every stg_focus_billing row, with
+      max(billing_account_type) and max(x_org_ancestor_name). Source of int_customer_map; covers accounts
+      whose only rows are Credit/Adjustment rows without x_Credits, which int_charges and int_credits miss.
+      Incremental table partitioned by charge_date, refreshed like int_charges.
+    columns:
+      - name: built_at
+        description: "Start of the build that last rewrote this charge_date partition. max(built_at) is the incremental watermark (macros/incremental_windows.sql)."

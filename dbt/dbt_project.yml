@@ -54,12 +54,15 @@ seeds:
 
 models:
   finops:
+    # Intermediate and mart models are tables, not views: a view re-scans the raw billing
+    # rows on every query (docs/plans/dbt-cost-materialization.md). stg_focus_billing,
+    # int_charges and int_credits are incremental tables, set in their own config.
     staging:
       +materialized: view
       +schema: dbt_staging
     intermediate:
-      +materialized: view
+      +materialized: table
       +schema: dbt_intermediate
     marts:
-      +materialized: view
+      +materialized: table
       +schema: finops_dbt

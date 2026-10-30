@@ -1,26 +1,81 @@
--- History backfill: convert the DETAILED (resource-level) billing export into the FOCUS export's shape.
+-- History backfill: convert the billing exports into the FOCUS export's shape.
 --
--- One CREATE statement. Output columns are the FOCUS export's columns in the same order, with the
--- same names, types, modes and STRUCT field names, so
+-- One CREATE statement, one mapping body. Output columns are the FOCUS export's columns in the same
+-- order, with the same names, types, modes and STRUCT field names, so
 --   SELECT * FROM focus_billing_history UNION ALL SELECT * FROM <focus export>
 -- is position-safe. The column mapping and its evidence live in README.md.
 --
--- {{SRC}} is substituted before running. Real run: gcp-coe-492507.finops_history.resource_export_raw
--- (see README.md); check_schema.py dry-runs it against the live se1 source. Substitute WITH the
--- backticks:
---   sed 's|{{SRC}}|`gcp-coe-492507.finops_history.resource_export_raw`|g' 02_convert.sql | bq query ...
+-- Two sources, joined by the `src` CTE at the seam 2025-09-01 (UTC):
+--   {{SRC_DETAIL}}    DETAILED (resource-level) export, usage_start_time >= 2025-09-01. Gap-free from 2025-08-28.
+--   {{SRC_STANDARD}}  frozen STANDARD export (snapshot 2025-10-07), 2025-01-01 <= usage_start_time < 2025-09-01.
+--                     It lacks 4 field paths the detailed export has (resource.{name,global_name},
+--                     subscription.instance_id, consumption_model.applied_subscription_instance_id), so the
+--                     standard branch pads them with typed NULLs in the detailed table's column order. Only
+--                     ResourceId, ResourceName and x_SubscriptionInstanceId depend on them, so those three
+--                     FOCUS columns are NULL for 2025-01 .. 2025-08.
 --
--- The table covers 2026-01-01 <= usage < 2026-10-01 (UTC). Rows before the cutover (dbt var
+-- Both placeholders are substituted before running. Real run: gcp-coe-492507.finops_history.resource_export_raw
+-- and gcp-coe-492507.finops_history.standard_export_raw (see README.md); check_schema.py dry-runs it against
+-- the two se1 sources. Substitute WITH the backticks:
+--   sed -e 's|{{SRC_DETAIL}}|`gcp-coe-492507.finops_history.resource_export_raw`|g' \
+--       -e 's|{{SRC_STANDARD}}|`gcp-coe-492507.finops_history.standard_export_raw`|g' 02_convert.sql | bq query ...
+--
+-- The table covers 2025-01-01 <= usage < 2026-10-01 (UTC). Rows before the cutover (dbt var
 -- focus_cutover_date, 2026-07-26 00:00 UTC) are the history that stg_focus_billing reads. Rows from the
 -- cutover on overlap the live FOCUS export and are a TEST FIXTURE ONLY: stg_focus_billing filters them out
 -- and assert_history_matches_focus_overlap compares them with FOCUS. check_schema.py checks that the
 -- window contains the dbt cutover.
+--
+-- Keep the branch WHEREs below indented: check_schema.py takes the WHERE at column 0 as the table window.
 
--- Frozen history 2026-01-01 <= usage < cutover, plus the overlap fixture cutover <= usage < 2026-10-01.
+-- Frozen history 2025-01-01 <= usage < cutover, plus the overlap fixture cutover <= usage < 2026-10-01.
 CREATE OR REPLACE TABLE `gcp-coe-492507.finops_history.focus_billing_history`
 PARTITION BY DATE(ChargePeriodStart)
 CLUSTER BY BillingAccountId, ServiceName
 AS
+WITH src AS (
+  SELECT *
+  FROM {{SRC_DETAIL}}
+  WHERE usage_start_time >= TIMESTAMP '2025-09-01'
+  UNION ALL
+  -- Standard export padded to the detailed schema; column order is the detailed table's.
+  SELECT
+    billing_account_id,
+    service,
+    sku,
+    usage_start_time,
+    usage_end_time,
+    project,
+    labels,
+    system_labels,
+    location,
+    CAST(NULL AS STRUCT<name STRING, global_name STRING>)  AS resource,
+    tags,
+    price,
+    CAST(NULL AS STRUCT<instance_id STRING>)                AS subscription,
+    transaction_type,
+    seller_name,
+    export_time,
+    cost,
+    currency,
+    currency_conversion_rate,
+    usage,
+    credits,
+    invoice,
+    cost_type,
+    adjustment_info,
+    cost_at_list,
+    cost_at_effective_price_default,
+    cost_at_list_consumption_model,
+    STRUCT(
+      consumption_model.id                                  AS id,
+      consumption_model.description                         AS description,
+      CAST(NULL AS STRING)                                  AS applied_subscription_instance_id
+    )                                                       AS consumption_model
+  FROM {{SRC_STANDARD}}
+  WHERE usage_start_time >= TIMESTAMP '2025-01-01'
+    AND usage_start_time <  TIMESTAMP '2025-09-01'
+)
 SELECT
   s.location.zone                                              AS AvailabilityZone,
   s.billed_cost_idr                                            AS BilledCost,
@@ -184,7 +239,7 @@ FROM (
     t.*,
     CAST(t.cost AS NUMERIC)
       + COALESCE((SELECT SUM(CAST(c.amount AS NUMERIC)) FROM UNNEST(t.credits) AS c), 0) AS billed_cost_idr
-  FROM {{SRC}} AS t
+  FROM src AS t
 ) AS s
-WHERE s.usage_start_time >= TIMESTAMP '2026-01-01'
+WHERE s.usage_start_time >= TIMESTAMP '2025-01-01'
   AND s.usage_start_time <  TIMESTAMP '2026-10-01';

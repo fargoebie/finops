@@ -9,7 +9,7 @@ select
     charge_month,
     credit_type                     as commitment_discount_type,
     billing_currency,
-    count(*)                        as line_count,
+    sum(row_count)                  as line_count,
     sum(credit_amount)              as total_cud_credit
 
 from {{ ref('int_credits') }}
