@@ -33,3 +33,5 @@ tmp/
 
 # Python / dbt local dev
 .venv/
+__pycache__/
+*.pyc

@@ -2,7 +2,15 @@ version: 2
 
 models:
   - name: stg_focus_billing
-    description: "Staging view over the GCP FOCUS billing export. Full fidelity — no rows dropped."
+    description: >
+      Staging view over GCP billing in FOCUS shape. Cutover union: before var focus_cutover_date
+      (2026-07-26, UTC) rows come from finops_history.focus_billing_history, which is the detailed
+      export converted to the FOCUS schema (history from 2026-01-01); from the cutover onward rows come
+      from the live FOCUS export. Each ChargePeriodStart is served by exactly one source. FOCUS rows
+      dated before the cutover are excluded to avoid double counting. A few columns are heuristic or
+      inexact in the history half (PricingCategory, PricingQuantity, RegionName, BillingPeriodStart/End
+      for PST months, unverified); x_SystemLabels is exact. See
+      tools/history_backfill/README.md. No other rows are dropped.
     columns:
       - name: charge_category
         description: "FOCUS ChargeCategory: Usage, Purchase, Tax, Credit, Adjustment."

@@ -8,3 +8,24 @@ migration-credit-13-1751305715249,Migration Credit 13,01E5F4-66804E-8286B7,,,,ob
 dea5e026-a67f-4a4d-b1da-fa3864688d15,Sales Credit - waworuntu - 516372508,01ACB3-EFAAC4-4A4F98,,,,observed 2026-07-24 to 2026-08-26
 4a4a34fd7ecdffcfadc95fe73d916766e477b274382a3c11669070581743a48b,Trial credit for GenAI App Builder,01319C-C0F533-768FB2,,,,observed 2026-07-25 to 2026-09-09
 a79efea5-5b0e-34fb-8650-24655848d33f:tier-0:1754031600,Infra & Apps (Windows) - Mithra deal 1751305715249 conditional credit 1 -  2025-08,01E5F4-66804E-8286B7,,,,observed 2026-08-13 to 2026-08-13
+migration-credit-7-1751305715249,Migration Credit 7,01E5F4-66804E-8286B7,,,,observed 2026-01-01 to 2026-01-30
+786cb968-fd87-4484-96ec-22c5abe746ac,Sales Credit - dewifebrianti - 465664035,01429D-7F6D5B-385DDE,,,,observed 2026-01-01 to 2026-01-05
+883eefbb-853c-3040-887a-1480aaa239e0:tier-0:0,Mithra deal 1751375885459 conditional credit 2 - ,01CCFB-BF6AD7-E9DD2C,,,,observed 2026-01-03 to 2026-07-13
+d3ed2aabd59bd46a59f42e84aa2e8f2e709c60ff56d275351fa955e4476bb6de,Trial credit for GenAI App Builder,01DF20-DD2658-424F64,,,,observed 2026-01-12 to 2026-07-10
+5cce3996-fa14-39b9-aa57-3ecbf204a45c:tier-0:0,Mithra deal 1766759572296 conditional credit 2 - ,01F832-2B1D0D-F05998,,,,observed 2026-01-29 to 2026-05-22
+migration-credit-8-1751305715249,Migration Credit 8,01E5F4-66804E-8286B7,,,,observed 2026-01-30 to 2026-02-28
+113ee954-ae75-43d3-9a98-7b928e5f3226,Trial for service cloudaicompanion.googleapis.com,01429D-7F6D5B-385DDE,,,,observed 2026-02-02 to 2026-03-01
+95f0c34d-3712-497a-a40a-01e6052f23ed,Trial for service cloudaicompanion.googleapis.com,01D7C5-4EC49A-B46EBC,,,,observed 2026-02-02 to 2026-03-01
+fcb2cb38-4e45-4140-bb7f-c223b04247f7,Trial for service cloudaicompanion.googleapis.com,016618-1D5A80-CF4367,,,,observed 2026-02-09 to 2026-03-08
+1e8a5266-5550-405c-829a-435ec4d6c94f,Trial for service cloudaicompanion.googleapis.com,01CAE9-7D9AD9-0F6323,,,,observed 2026-02-20 to 2026-03-22
+migration-credit-9-1751305715249,Migration Credit 9,01E5F4-66804E-8286B7,,,,observed 2026-02-28 to 2026-03-28
+1978328d-8c1a-35d8-9244-c0f9722a9202:tier-0:1761980400,Infra & Apps (Windows) - Mithra deal 1751305715249 conditional credit 1 2025-11,01E5F4-66804E-8286B7,,,,observed 2026-03-17 to 2026-03-17
+migration-credit-10-1751305715249,Migration Credit 10,01E5F4-66804E-8286B7,,,,observed 2026-03-30 to 2026-04-30
+migration-credit-11-1751305715249,Migration Credit 11,01E5F4-66804E-8286B7,,,,observed 2026-04-30 to 2026-05-30
+df70d7ac-fab3-38dd-8bb3-1b06899e1e9a:tier-0:1767254400,Vertex Gen AI - Mithra deal 1766759572296 conditional credit 1 -  2026-01,01F832-2B1D0D-F05998,,,,observed 2026-05-22 to 2026-05-22
+migration-credit-12-1751305715249,Migration Credit 12,01E5F4-66804E-8286B7,,,,observed 2026-05-30 to 2026-06-30
+1da0b0b715db651be1701daaddf40525945f266a436c5d26e9474e9e02b5b357,Trial credit for GenAI App Builder,01FC3A-DE88A6-F39529,,,,observed 2026-05-30 to 2026-07-09
+dialogflow_cx_credit_v2-01319C-C0F533-768FB2,Dialogflow CX Trial,01319C-C0F533-768FB2,,,,observed 2026-06-02 to 2026-06-17
+bf72fb41-ceff-4607-80e8-f6a0a56f6697,GCP Sandbox Credits,01A09A-A37EA6-F0AC6C,,,,observed 2026-07-09 to 2026-07-09
+migration-credit-16-1751305715249,Migration Credit 16,01E5F4-66804E-8286B7,,,,observed 2026-09-30 to 2026-10-29
+419c6267-e460-4979-898a-6ef235a18052,Trial for service elastic-cloud.endpoints.prod-elastic-cloud-billing.cloud.goog,017E73-D7CA48-7C6CD6,,,,observed 2026-10-16 to 2026-10-23

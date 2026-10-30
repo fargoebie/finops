@@ -12,3 +12,19 @@ sources:
           GCP FOCUS 1.0 billing export. ChargeCategory is the main classification
           (Usage/Purchase/Tax/Credit/Adjustment). Credits are embedded in Usage rows
           via x_Credits REPEATED RECORD, not as separate Credit rows.
+
+  - name: finops_history
+    description: >
+      One-time backfill of pre-cutover billing history, converted from the detailed
+      (resource-level) export into the exact FOCUS export schema. Built by
+      tools/history_backfill/ (see its README). Lives in the dbt project, not the billing project.
+    database: "{{ env_var('DBT_PROJECT_ID', env_var('DBT_OUTPUT_PROJECT_ID', 'gcp-coe-492507')) }}"
+    schema: finops_history
+    tables:
+      - name: focus_billing_history
+        description: >
+          Frozen. Usage 2026-01-01 up to (excluding) 2026-10-01, same columns as the FOCUS export.
+          stg_focus_billing reads only ChargePeriodStart < var focus_cutover_date (2026-07-26). Rows from the
+          cutover to 2026-10-01 overlap the live FOCUS export and are a test fixture only:
+          assert_history_matches_focus_overlap compares them with FOCUS to prove the conversion is exact.
+          Late Google corrections are not picked up until the table is rebuilt.

@@ -1,8 +1,15 @@
--- Staging view over GCP FOCUS billing export.
+-- Staging view over GCP FOCUS billing data.
 -- Renames PascalCase FOCUS columns to snake_case, coalesces nulls on cost/price
 -- columns, and adds charge_date / charge_month for grouping.
 -- x_credits (REPEATED RECORD) is passed through intact for UNNEST in int_credits.
--- No rows are filtered — full fidelity is the point.
+--
+-- Source is a cutover union (var focus_cutover_date, UTC midnight). Each ChargePeriodStart is
+-- served by exactly one source, so nothing is dropped or double counted:
+--   ChargePeriodStart <  cutover : finops_history.focus_billing_history, the detailed export
+--                                  converted to the FOCUS schema (tools/history_backfill/; frozen)
+--   ChargePeriodStart >= cutover : the live FOCUS export
+-- FOCUS rows dated before the cutover (ramp-up days, 2026-07-01 tax rows) are deliberately excluded.
+-- Both sides have identical columns, so SELECT * UNION ALL is position-safe.
 
 select
     BillingAccountId                                         as billing_account_id,
@@ -113,4 +120,10 @@ select
     x_ProjectLabels                                          as x_project_labels,
     x_Tags                                                   as x_tags
 
-from {{ source('gcp_billing', 'focus_export') }}
+from (
+    select * from {{ source('finops_history', 'focus_billing_history') }}
+    where ChargePeriodStart < timestamp('{{ var("focus_cutover_date") }}')
+    union all
+    select * from {{ source('gcp_billing', 'focus_export') }}
+    where ChargePeriodStart >= timestamp('{{ var("focus_cutover_date") }}')
+) as focus_billing

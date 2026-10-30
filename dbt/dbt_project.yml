@@ -15,6 +15,12 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  # UTC midnight. stg_focus_billing reads finops_history.focus_billing_history before this
+  # instant and the live FOCUS export from it onward. Must equal the cutover in
+  # tools/history_backfill/02_convert.sql (tools/history_backfill/check_schema.py checks).
+  focus_cutover_date: '2026-07-26'
+
 seeds:
   finops:
     customer_accounts:
