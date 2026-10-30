@@ -154,7 +154,6 @@ BRI GCP 5 (`01319C-C0F533-768FB2`) monthly billed, usage only, from the detailed
 - **Seeds:** 17 churned Resold accounts added to `customer_accounts.csv`, 21 promotion credits to `credit_programs.csv` (clears the two warnings from the longer history).
 - **Deployment order:** don't deploy the dbt changes to the VM before `focus_billing_history` exists; `stg_focus_billing` fails without it.
 - **Open items:**
-  - `int_customer_map.observed` uses `any_value(billing_account_type)`; `01A09A` has NULL and `'Reseller'` rows, so it can resolve nondeterministically (existing bug).
   - `fct_credit_runway.applied_to_date_idr` now sums observed history back to 2026-01; check the runway/burn windows still behave as intended.
   - FOCUS export partitions expire after 730 days; rows start aging out 2028-07-25, so the history table will need to absorb them.
 - **Auth:** gcloud and ADC expire about hourly. The user runs `! gcloud auth login` (and `! gcloud auth application-default login` for dbt). Always pass `--project_id=gcp-coe-492507` to `bq`.

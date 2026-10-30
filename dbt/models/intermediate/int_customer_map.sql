@@ -30,7 +30,9 @@ names as (
 observed as (
     select
         billing_account_id,
-        any_value(billing_account_type) as billing_account_type,
+        -- max, not any_value: the reseller account has NULL type on non-usage rows,
+        -- and any_value could return that NULL and leave reseller_org empty.
+        max(billing_account_type)       as billing_account_type,
         max(x_org_ancestor_name)        as x_org_ancestor_name
     from {{ ref('stg_focus_billing') }}
     group by 1
