@@ -1,0 +1,14 @@
+# Tables grokbot may query (fully qualified project.dataset.table). One per line.
+# Keep in sync with dbt/models/marts/*.sql and dbt/seeds/*.csv.
+# Marts
+gcp-coe-492507.finops_dbt.fct_commitment_discounts
+gcp-coe-492507.finops_dbt.fct_credit_breakdown
+gcp-coe-492507.finops_dbt.fct_credit_runway
+gcp-coe-492507.finops_dbt.fct_customer_monthly
+gcp-coe-492507.finops_dbt.fct_customer_service_month
+gcp-coe-492507.finops_dbt.fct_monthly_showback
+gcp-coe-492507.finops_dbt.fct_spend_waterfall
+# Seeds
+gcp-coe-492507.finops_dbt.billing_accounts
+gcp-coe-492507.finops_dbt.credit_programs
+gcp-coe-492507.finops_dbt.customer_accounts

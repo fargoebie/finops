@@ -25,3 +25,8 @@ output "vpc_network" {
 output "vpc_subnet" {
   value = google_compute_subnetwork.main.name
 }
+
+output "grokbot_service_account_email" {
+  description = "Grokbot read-only BigQuery service account email."
+  value       = google_service_account.grokbot.email
+}

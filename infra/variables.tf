@@ -51,3 +51,9 @@ variable "metabase_db_password" {
   default     = null
   sensitive   = true
 }
+
+variable "grokbot_dataset_id" {
+  description = "BigQuery dataset (owned by dbt) that the grokbot SA gets read-only access to."
+  type        = string
+  default     = "finops_dbt"
+}
